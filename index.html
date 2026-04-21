@@ -202,7 +202,16 @@
             <div class="flex gap-2 items-center font-black uppercase">
                 <button onclick="abrirAdmin()" class="bg-blue-600 text-white px-3 py-1 rounded text-[10px] shadow">⚙️ Lançamentos</button>
                 <button id="btn-master-users" onclick="abrirGestaoUsuarios()" class="hidden bg-orange-500 text-white px-3 py-1 rounded text-[10px] shadow">👥 Gerenciar Usuários</button>
-                <button onclick="logout()" class="text-[10px] text-red-500 uppercase ml-2 bg-transparent cursor-pointer font-black border-none">Sair</button>
+                
+				<button onclick="abrirManual()" class="flex items-center gap-1.5 bg-white border-2 border-blue-600 text-blue-600 px-3 py-1 rounded text-[10px] shadow-sm hover:bg-blue-50 transition font-black uppercase">
+						<!-- Ícone de Livro Aberto -->
+						<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+						</svg>
+						Manual
+				</button>
+				
+				<button onclick="logout()" class="text-[10px] text-red-500 uppercase ml-2 bg-transparent cursor-pointer font-black border-none">Sair</button>
             </div>
         </div>
     </div>
@@ -250,6 +259,96 @@
     </div>
 
     <!-- MODAL PENDENCIAS -->
+	
+	<!-- MODAL MANUAL DO USUÁRIO -->
+    <div id="modal-manual" class="modal-bg" style="display:none; z-index: 15000;">
+        <div class="modal-content shadow-2xl max-w-2xl">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-sm text-blue-600 font-black italic uppercase flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    Manual do Usuário: Controle Financeiro
+                </h2>
+                <button onclick="document.getElementById('modal-manual').style.display='none'" class="text-slate-400 text-2xl">&times;</button>
+            </div>
+
+            <!-- ÍNDICE COM LINKS -->
+            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 mb-6">
+                <h3 class="text-[10px] font-black uppercase mb-2 text-slate-400 italic">Índice de Tópicos</h3>
+                <ul class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-[9px] font-black uppercase">
+                    <li><a href="#m-filo" class="text-blue-600 hover:underline">1. Filosofia do Sistema</a></li>
+                    <li><a href="#m-acesso" class="text-blue-600 hover:underline">2. Acesso e Segurança</a></li>
+                    <li><a href="#m-regua" class="text-blue-600 hover:underline">3. Régua de 12 Meses</a></li>
+                    <li><a href="#m-ancora" class="text-blue-600 hover:underline">4. Saldo Bancário (Âncora)</a></li>
+                    <li><a href="#m-cat" class="text-orange-600 hover:underline">5. Gerenciador: Categorias ★</a></li>
+                    <li><a href="#m-regras" class="text-blue-600 hover:underline">6. Criando Lançamentos/Regras</a></li>
+                    <li><a href="#m-tabela" class="text-blue-600 hover:underline">7. Tabela de Lançamentos</a></li>
+                    <li><a href="#m-cadeado" class="text-blue-600 hover:underline">8. O Cadeado (Edição Individual)</a></li>
+                    <li><a href="#m-empurrao" class="text-blue-600 hover:underline">9. Virada de Mês (O Empurrão)</a></li>
+                    <li><a href="#m-config" class="text-blue-600 hover:underline">10. Configurações e Backup</a></li>
+                </ul>
+            </div>
+
+            <!-- CONTEÚDO DO MANUAL -->
+            <div class="space-y-8 text-[10px] font-black uppercase text-slate-600 leading-relaxed">
+                
+                <section id="m-filo">
+                    <h4 class="text-blue-600 border-b-2 border-blue-100 mb-2 italic">1. 📊 A Filosofia do Sistema</h4>
+                    <p>O foco é o seu fluxo de caixa futuro. O sistema projeta seu saldo pelos próximos 24 meses baseado no que você tem hoje e no que ainda vai vencer.</p>
+                </section>
+
+                <section id="m-acesso">
+                    <h4 class="text-blue-600 border-b-2 border-blue-100 mb-2 italic">2. 🔑 Acesso e Segurança</h4>
+                    <p>Cada familiar tem sua área privada. Seus dados são invisíveis para outros usuários, garantido pela tecnologia de segurança RLS.</p>
+                </section>
+
+                <section id="m-regua">
+                    <h4 class="text-blue-600 border-b-2 border-blue-100 mb-2 italic">3. 📅 A Régua de 12 Meses (Min/Max)</h4>
+                    <p>No topo, o valor superior (Vermelho) é o menor saldo projetado do mês. O inferior (Azul) é o maior saldo previsto.</p>
+                </section>
+
+                <section id="m-ancora">
+                    <h4 class="text-blue-600 border-b-2 border-blue-100 mb-2 italic">4. ⚓ O Saldo Bancário Atual (Âncora)</h4>
+                    <p>É o seu saldo real hoje. Ao atualizar, o sistema apaga projeções passadas e recalcula todo o futuro a partir deste valor.</p>
+                </section>
+
+                <section id="m-cat" class="bg-orange-50 p-2 rounded-md border border-orange-100">
+                    <h4 class="text-orange-600 border-b-2 border-orange-200 mb-2 italic">5. 🏷️ Gerenciador: Categorias (PRIMEIRO PASSO)</h4>
+                    <p class="text-orange-700">IMPORTANTE: Este é o primeiro passo obrigatório. Você deve criar suas categorias (Ex: Aluguel, Salário) antes de cadastrar qualquer lançamento.</p>
+                </section>
+
+                <section id="m-regras">
+                    <h4 class="text-blue-600 border-b-2 border-blue-100 mb-2 italic">6. ⚙️ Gerenciador: Criando Novos Lançamentos/Regras</h4>
+                    <p>Defina se a conta é mensal, semanal ou de meses específicos. O sistema criará as previsões automaticamente para você.</p>
+                </section>
+
+                <section id="m-tabela">
+                    <h4 class="text-blue-600 border-b-2 border-blue-100 mb-2 italic">7. 📑 Entendendo a Tabela de Lançamentos</h4>
+                    <p>As cores mostram o resultado dos cadastros: Linhas Vermelhas (Gastos), Verdes (Ganhos) e Opacas (Itens já pagos/realizados).</p>
+                </section>
+
+                <section id="m-cadeado">
+                    <h4 class="text-blue-600 border-b-2 border-blue-100 mb-2 italic">8. ✏️ Edição Individual vs. Regra Global (O Cadeado)</h4>
+                    <p>Ao mudar o valor de apenas um mês, você ativa um "Cadeado". Se mudar a regra geral depois, aquele mês trancado não será alterado.</p>
+                </section>
+
+                <section id="m-empurrao">
+                    <h4 class="text-blue-600 border-b-2 border-blue-100 mb-2 italic">9. 🔄 A Virada do Mês (O Empurrão)</h4>
+                    <p>Ao mudar o saldo para um novo mês, o sistema pergunta o que fazer com as contas que sobraram do mês passado: Pagar, Zerar ou Mover.</p>
+                </section>
+
+                <section id="m-config">
+                    <h4 class="text-blue-600 border-b-2 border-blue-100 mb-2 italic">10. 🛠️ Configurações e Backup</h4>
+                    <p>Defina seus limites de alerta de cores e faça o backup em Excel regularmente para sua segurança.</p>
+                </section>
+
+            </div>
+            
+            <div class="mt-8 pt-4 border-t text-center">
+                <button onclick="document.getElementById('modal-manual').style.display='none'" class="bg-blue-600 text-white px-8 py-2 rounded font-black uppercase shadow">Fechar Manual</button>
+            </div>
+        </div>
+    </div>
+	
     <div id="modal-empurrao" class="modal-bg hidden">
         <div class="modal-content shadow-2xl font-black text-[10px] uppercase"><h2 class="text-sm text-red-600 mb-2">Pendências</h2><div id="lista-pendencias" class="space-y-2 pr-1"></div><div class="mt-4 pt-3 border-t"><button onclick="finalizarProcessamentoEmpurrao()" class="w-full bg-blue-600 text-white py-2 rounded font-black uppercase">Concluir</button></div></div>
     </div>
@@ -359,6 +458,11 @@
             const valorAtual = itemParaBaixa.predicted_debit > 0 ? itemParaBaixa.predicted_debit : itemParaBaixa.predicted_credit;
             document.getElementById('baixa-valor').value = formatarMoeda(valorAtual);
             document.getElementById('modal-baixa').classList.remove('hidden');
+        }
+		
+		function abrirManual() {
+            // Localiza a janela do manual e faz ela aparecer
+            document.getElementById('modal-manual').style.display = 'flex';
         }
 		
 		function abrirAdmin() { limparFormLancamento(); document.getElementById('modal-admin').classList.remove('hidden'); popularCategoriasSelect(); mudarTab('lan'); }
