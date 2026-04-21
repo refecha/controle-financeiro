@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finanças - Login</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4 font-bold">
+
+    <div class="bg-white w-full max-w-md p-8 rounded-xl shadow-lg border border-slate-200">
+        <h1 class="text-2xl font-black text-center text-blue-600 mb-6 uppercase tracking-tighter italic">Controle Financeiro</h1>
+        
+        <div id="auth-container">
+            <h2 id="auth-title" class="text-xs font-black mb-4 text-slate-400 uppercase italic">Acessar Conta</h2>
+
+            <div class="space-y-4">
+                <!-- Nome de Usuário -->
+                <div>
+                    <label class="block text-[10px] uppercase text-slate-400 font-black">Login / Nome</label>
+                    <input type="text" id="username" class="w-full p-2 border rounded shadow-sm outline-none focus:ring-2 focus:ring-blue-400 text-sm" placeholder="Ex: Reginaldo">
+                </div>
+
+                <!-- E-mail (Apenas no Cadastro) -->
+                <div id="email-field" style="display: none;">
+                    <label class="block text-[10px] uppercase text-slate-400 font-black">E-mail de Recuperação</label>
+                    <input type="email" id="email" class="w-full p-2 border rounded shadow-sm outline-none focus:ring-2 focus:ring-blue-400 text-sm" placeholder="seu@email.com">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] uppercase text-slate-400 font-black">Senha</label>
+                    <input type="password" id="password" class="w-full p-2 border rounded shadow-sm outline-none focus:ring-2 focus:ring-blue-400 text-sm" placeholder="******" onkeyup="if(event.key === 'Enter') handleAuth()">
+                </div>
+
+                <button onclick="handleAuth()" id="btn-primary" class="w-full bg-blue-600 text-white py-3 rounded font-black shadow-md hover:bg-blue-700 transition uppercase text-sm">
+                    Entrar no Sistema
+                </button>
+
+                <p class="text-center text-[10px] mt-4 text-slate-400 uppercase">
+                    <span id="toggle-text">Não tem uma conta?</span>
+                    <button onclick="toggleMode()" id="btn-toggle" class="text-blue-600 font-black ml-1 underline uppercase">Criar agora</button>
+                </p>
+				
+				<p id="forgot-container" class="text-center text-[10px] mt-2 text-slate-400 uppercase">
+					<button onclick="toggleRecuperar()" id="btn-forgot" class="hover:text-blue-600 transition uppercase">Esqueci minha senha</button>
+				</p>
+                
+                <div id="message" class="text-center text-[10px] font-black mt-4 hidden p-2 rounded uppercase border-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const URL_PROJETO = 'https://vmonqerlroepcadfyrre.supabase.co'; 
+        const CHAVE_ANON = 'sb_publishable_aFXJE1zlqp-FPWB3UV-GIw__y6fL9QA';
+        const conexao = supabase.createClient(URL_PROJETO, CHAVE_ANON);
+        
+        let modoLogin = true;
+
+        function toggleMode() {
+            modoLogin = !modoLogin;
+            document.getElementById('auth-title').innerText = modoLogin ? 'Acessar Conta' : 'Novo Cadastro';
+            document.getElementById('btn-primary').innerText = modoLogin ? 'Entrar no Sistema' : 'Finalizar Cadastro';
+            document.getElementById('toggle-text').innerText = modoLogin ? 'Não tem uma conta?' : 'Já tem uma conta?';
+            document.getElementById('btn-toggle').innerText = modoLogin ? 'Criar agora' : 'Voltar ao Login';
+            document.getElementById('email-field').style.display = modoLogin ? 'none' : 'block';
+        }
+
+		let modoRecuperar = false;
+
+        function toggleRecuperar() {
+            modoRecuperar = !modoRecuperar;
+            const titulo = document.getElementById('auth-title');
+            const btnPrimary = document.getElementById('btn-primary');
+            const emailField = document.getElementById('email-field');
+            const userField = document.getElementById('username').parentElement;
+            const passField = document.getElementById('password').parentElement;
+            const toggleText = document.getElementById('toggle-text').parentElement;
+
+            if (modoRecuperar) {
+                titulo.innerText = 'Recuperar Senha';
+                btnPrimary.innerText = 'Enviar Link de Recuperação';
+                emailField.style.display = 'block'; // Mostra o e-mail
+                userField.style.display = 'none';    // Esconde o Login/Nome
+                passField.style.display = 'none';    // Esconde a Senha
+                toggleText.style.display = 'none';   // Esconde o "Criar Conta"
+                document.getElementById('btn-forgot').innerText = 'Voltar ao Login';
+            } else {
+                titulo.innerText = 'Acessar Conta';
+                btnPrimary.innerText = 'Entrar no Sistema';
+                emailField.style.display = 'none';
+                userField.style.display = 'block';
+                passField.style.display = 'block';
+                toggleText.style.display = 'block';
+                document.getElementById('btn-forgot').innerText = 'Esqueci minha senha';
+                modoLogin = true; 
+            }
+        }
+
+        async function handleAuth() {
+            const loginInput = document.getElementById('username').value.trim();
+            const emailInput = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const msgDiv = document.getElementById('message');
+
+            msgDiv.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'border-red-200', 'bg-green-50', 'text-green-700', 'border-green-200');
+            msgDiv.innerText = "PROCESSANDO...";
+            msgDiv.classList.add('block', 'bg-blue-50', 'text-blue-600', 'border-blue-200');
+
+			// SEÇÃO DE RECUPERAÇÃO DE SENHA
+            if (modoRecuperar) {
+                if (!emailInput) {
+                    mostrarErro("INFORME SEU E-MAIL");
+                    return;
+                }
+                
+                const { error } = await conexao.auth.resetPasswordForEmail(emailInput, {
+                    redirectTo: window.location.origin + '/redefinir.html',
+                });
+
+                if (error) {
+                    mostrarErro(error.message.toUpperCase());
+                } else {
+                    msgDiv.innerText = "LINK ENVIADO! VERIFIQUE SEU E-MAIL.";
+                    msgDiv.classList.replace('bg-blue-50', 'bg-green-50');
+                    msgDiv.classList.replace('text-blue-600', 'text-green-700');
+                }
+                return; // Para a execução aqui
+            }
+
+            if (modoLogin) {
+                // 1. Busca insensível a maiúsculas/minúsculas (ILIKE)
+                const { data: perfil, error: erroBusca } = await conexao
+                    .from('profiles')
+                    .select('email')
+                    .ilike('login', loginInput)
+                    .single();
+
+                if (erroBusca || !perfil) {
+                    mostrarErro("USUÁRIO NÃO ENCONTRADO");
+                    return;
+                }
+
+                // 2. Tentar autenticar
+                const { error: erroAuth } = await conexao.auth.signInWithPassword({ 
+                    email: perfil.email, 
+                    password: password 
+                });
+
+                if (erroAuth) {
+                    mostrarErro("SENHA INCORRETA");
+                } else {
+                    msgDiv.innerText = "SUCESSO! ENTRANDO...";
+                    msgDiv.classList.replace('bg-blue-50', 'bg-green-50');
+                    msgDiv.classList.replace('text-blue-600', 'text-green-700');
+                    
+                    // Redirecionamento forçado para a planilha
+                    window.location.href = 'index.html';
+                }
+
+            } else {
+                // Cadastro (Mesma lógica segura)
+                if(!loginInput || !emailInput || !password) {
+                    mostrarErro("PREENCHA TUDO");
+                    return;
+                }
+                const { data, error } = await conexao.auth.signUp({ email: emailInput, password: password });
+                if (error) {
+                    mostrarErro(error.message.toUpperCase());
+                } else {
+                    const { error: errorPerfil } = await conexao.from('profiles').insert([{ id: data.user.id, login: loginInput, email: emailInput }]);
+                    if (errorPerfil) {
+                        mostrarErro("LOGIN JÁ EXISTE");
+                    } else {
+                        msgDiv.innerText = "CRIADO! FAÇA O LOGIN.";
+                        msgDiv.classList.replace('bg-blue-50', 'bg-green-50');
+                        msgDiv.classList.replace('text-blue-600', 'text-green-700');
+                        setTimeout(() => { toggleMode(); }, 2000);
+                    }
+                }
+            }
+        }
+
+        function mostrarErro(texto) {
+            const msgDiv = document.getElementById('message');
+            let mensagemTraduzida = texto;
+
+            // Tradutor de erros comuns para o padrão do sistema
+            if (texto.includes("User already registered")) mensagemTraduzida = "E-MAIL JÁ CADASTRADO";
+            if (texto.includes("Invalid login credentials")) mensagemTraduzida = "LOGIN OU SENHA INCORRETOS";
+            if (texto.includes("Password should be at least 6 characters")) mensagemTraduzida = "SENHA DEVE TER NO MÍNIMO 6 DÍGITOS";
+
+            msgDiv.innerText = mensagemTraduzida;
+            msgDiv.classList.replace('bg-blue-50', 'bg-red-50');
+            msgDiv.classList.replace('text-blue-600', 'text-red-700');
+            msgDiv.classList.add('border-red-200');
+            msgDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

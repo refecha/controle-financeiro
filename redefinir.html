@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finanças - Nova Senha</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4 font-bold">
+
+    <div class="bg-white w-full max-w-md p-8 rounded-xl shadow-lg border border-slate-200">
+        <h1 class="text-2xl font-black text-center text-blue-600 mb-6 uppercase tracking-tighter italic">Nova Senha</h1>
+        
+        <div id="auth-container">
+            <h2 class="text-xs font-black mb-4 text-slate-400 uppercase italic text-center">Digite sua nova senha de acesso</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] uppercase text-slate-400 font-black">Nova Senha</label>
+                    <input type="password" id="new-password" class="w-full p-2 border rounded shadow-sm outline-none focus:ring-2 focus:ring-blue-400 text-sm" placeholder="******">
+                </div>
+
+                <button onclick="atualizarSenha()" id="btn-save" class="w-full bg-blue-600 text-white py-3 rounded font-black shadow-md hover:bg-blue-700 transition uppercase text-sm">
+                    Salvar Nova Senha
+                </button>
+                
+                <div id="message" class="text-center text-[10px] font-black mt-4 hidden p-2 rounded uppercase border-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const URL_PROJETO = 'https://vmonqerlroepcadfyrre.supabase.co'; 
+        const CHAVE_ANON = 'sb_publishable_aFXJE1zlqp-FPWB3UV-GIw__y6fL9QA';
+        const conexao = supabase.createClient(URL_PROJETO, CHAVE_ANON);
+
+        async function atualizarSenha() {
+            const novaSenha = document.getElementById('new-password').value;
+            const msgDiv = document.getElementById('message');
+
+            if (novaSenha.length < 6) {
+                mostrarMensagem("A SENHA DEVE TER NO MÍNIMO 6 DÍGITOS", "red");
+                return;
+            }
+
+            msgDiv.innerText = "ATUALIZANDO...";
+            msgDiv.className = "text-center text-[10px] font-black mt-4 block p-2 rounded uppercase border-2 bg-blue-50 text-blue-600 border-blue-200";
+
+            const { error } = await conexao.auth.updateUser({ password: novaSenha });
+
+            if (error) {
+                mostrarMensagem("ERRO: " + error.message.toUpperCase(), "red");
+            } else {
+                mostrarMensagem("SENHA ATUALIZADA COM SUCESSO!", "green");
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 3000);
+            }
+        }
+
+        function mostrarMensagem(texto, cor) {
+            const msgDiv = document.getElementById('message');
+            msgDiv.innerText = texto;
+            msgDiv.classList.remove('hidden');
+            
+            if (cor === "red") {
+                msgDiv.className = "text-center text-[10px] font-black mt-4 block p-2 rounded uppercase border-2 bg-red-50 text-red-700 border-red-200";
+            } else {
+                msgDiv.className = "text-center text-[10px] font-black mt-4 block p-2 rounded uppercase border-2 bg-green-50 text-green-700 border-green-200";
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finanças - Painel</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .txt-tabela { font-size: 10px; font-weight: 900; letter-spacing: -0.02em; }
+        .saldo-negativo { color: #dc2626 !important; background-color: #fee2e2; border-radius: 2px; padding: 0 2px; }
+        .saldo-rosa { color: #db2777 !important; }
+        .saldo-azul { color: #2563eb !important; }
+        .saldo-azul-escuro { color: #1e3a8a !important; text-decoration: underline; }
+        .debito-prev { color: #dc2626; text-align: right !important; padding-right: 8px !important; }
+        .credito-prev { color: #16a34a; text-align: right !important; padding-right: 8px !important; }
+        .debito-real { color: #fca5a5; text-align: right !important; padding-right: 8px !important; }
+        .credito-real { color: #86efac; text-align: right !important; padding-right: 8px !important; }
+        .col-saldo-val { text-align: right !important; padding-right: 8px !important; font-weight: 900; font-size: 10px; }
+        .border-v { border-right: 1px solid #cbd5e1 !important; }
+        .hidden { display: none !important; }
+        .card-mes { border: 1px solid #e2e8f0; padding: 4px; border-radius: 6px; text-align: center; background: white; }
+        #custom-alert { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10000; padding: 10px 20px; border-radius: 6px; font-weight: 900; font-size: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 2px solid; transition: all 0.3s; }
+        .alert-success { background-color: #dcfce7; border-color: #22c55e; color: #166534; }
+        .alert-error { background-color: #fee2e2; border-color: #ef4444; color: #991b1b; }
+        .alert-info { background-color: #dbeafe; border-color: #3b82f6; color: #1e40af; }
+        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 9000; backdrop-filter: blur(1px); }
+        .modal-content { background: white; padding: 20px; border-radius: 10px; width: 95%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+        .tab-btn { padding: 8px 12px; font-weight: 900; font-size: 9px; text-transform: uppercase; border-bottom: 3px solid transparent; color: #6b7280; }
+        .tab-active { border-bottom-color: #2563eb; color: #2563eb; background-color: #eff6ff; }
+        .fonte-realizado { color: #94a3b8; cursor: pointer; }
+        .fonte-previsto { color: #1e293b; cursor: pointer; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+    <div id="custom-alert" class="alert-info"><span id="alert-text"></span></div>
+
+    <!-- JANELA DE CONFIRMAÇÃO PADRONIZADA -->
+    <div id="modal-confirmacao" class="modal-bg hidden" style="display:none; z-index: 20000; align-items: flex-start; padding-top: 50px;">
+        <div class="modal-content shadow-2xl font-black text-[10px] uppercase max-w-[320px]">
+            <h2 class="text-sm text-red-600 mb-4 font-black" id="confirm-titulo">CONFIRMAR?</h2>
+            <p class="mb-6 text-slate-500 font-bold" id="confirm-texto"></p>
+            <div class="flex gap-2">
+                <button id="btn-confirmar-sim" class="flex-1 bg-red-600 text-white py-2 rounded font-black uppercase">SIM, EXCLUIR</button>
+                <button onclick="fecharModalConfirmacao()" class="flex-1 bg-slate-200 text-slate-700 py-2 rounded font-black uppercase">CANCELAR</button>
+            </div>
+        </div>
+    </div>
+	
+	<!-- JANELA DE GESTÃO DE USUÁRIOS (MASTER) -->
+    <div id="modal-usuarios" class="modal-bg hidden" style="display:none; z-index: 9500;">
+        <div class="modal-content shadow-2xl font-black uppercase text-[10px] max-w-[500px]">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-sm text-blue-600 font-black">👥 Gerenciar Usuários da Família</h2>
+                <button onclick="document.getElementById('modal-usuarios').style.display='none'" class="text-slate-400 text-xl">&times;</button>
+            </div>
+
+            <!-- Formulário para Adicionar Novo -->
+            <div class="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4">
+                <h3 class="mb-2 text-blue-700">Cadastrar Novo Membro</h3>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <input type="text" id="new-user-login" class="border rounded p-1" placeholder="NOME/LOGIN">
+                    <input type="email" id="new-user-email" class="border rounded p-1" placeholder="E-MAIL">
+                </div>
+                <div class="flex gap-2">
+                    <input type="password" id="new-user-pass" class="flex-1 border rounded p-1" placeholder="SENHA INICIAL" onkeyup="if(event.key === 'Enter') cadastrarMembroFamilia()">
+                    <button onclick="cadastrarMembroFamilia()" class="bg-blue-600 text-white px-4 py-1 rounded">CADASTRAR</button>
+                </div>
+            </div>
+
+            <!-- Lista de Usuários Atual -->
+            <div class="max-h-60 overflow-y-auto">
+                <table class="w-full text-left">
+                    <thead class="bg-slate-100 sticky top-0 font-black">
+                        <tr>
+                            <th class="p-2">Login</th>
+                            <th class="p-2">E-mail</th>
+                            <th class="p-2 text-center">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-usuarios-corpo">
+                        <!-- Nomes da família aparecerão aqui -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE BAIXA -->
+    <div id="modal-baixa" class="modal-bg hidden">
+        <div class="modal-content shadow-2xl font-black uppercase">
+            <h2 class="text-sm mb-3 border-b pb-2 text-slate-700 italic uppercase">Confirmar Lançamento</h2>
+            <p id="baixa-desc" class="text-xs text-blue-600 mb-4 font-black"></p>
+            <div class="space-y-3 font-black">
+                <div>Data Real<input type="date" id="baixa-data" class="w-full border rounded p-2 text-xs outline-none"></div>
+                <div>Valor Real ($)<input type="text" id="baixa-valor" class="w-full border rounded p-2 text-xs outline-none" onfocus="this.select()" onblur="formatarCampoMoeda(this)"></div>
+                <div class="flex gap-2 mt-4">
+                    <button onclick="confirmarBaixa()" class="flex-1 bg-green-600 text-white py-2 rounded text-[10px]">Confirmar</button>
+                    <button onclick="deletarLancamentoIndividual()" class="flex-1 bg-red-50 text-red-600 py-2 rounded text-[10px]">Excluir</button>
+                    <button onclick="fecharModalBaixa()" class="flex-1 bg-slate-200 text-slate-700 py-2 rounded text-[10px]">Sair</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+	<!-- MODAL DE DECISÃO DE EDIÇÃO -->
+    <div id="modal-decisao-edicao" class="modal-bg" style="display:none; z-index: 11000;">
+	
+        <div class="modal-content shadow-2xl font-black uppercase text-[10px] max-w-[300px]">
+            <h2 class="text-sm text-blue-600 mb-4 font-black italic">O QUE DESEJA EDITAR?</h2>
+            <p class="mb-6 text-slate-500 font-bold">Você quer alterar apenas este valor específico ou a regra mensal inteira?</p>
+            <div class="flex flex-col gap-2">
+                <button onclick="prepararEdicaoIndividual()" class="bg-blue-600 text-white py-3 rounded font-black uppercase shadow hover:bg-blue-700">
+                    ✏️ APENAS ESTE LANÇAMENTO
+                </button>
+                <button onclick="prepararEdicaoGlobal()" class="bg-slate-700 text-white py-3 rounded font-black uppercase shadow hover:bg-slate-800">
+                    📅 REGRA GLOBAL (MENSAL)
+                </button>
+                <button onclick="document.getElementById('modal-decisao-edicao').style.display='none'" class="bg-slate-100 text-slate-400 py-2 rounded font-black uppercase mt-2">
+                    CANCELAR
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL GERENCIADOR -->
+    <div id="modal-admin" class="modal-bg hidden font-black">
+	
+        <div class="modal-content shadow-2xl">
+            <div class="flex justify-between items-center mb-3 text-slate-800 text-sm uppercase italic">
+                <h2>Gerenciador Financeiro</h2>
+                <button onclick="fecharModal()" class="text-slate-400 text-xl font-normal">&times;</button>
+            </div>
+            <div class="flex border-b mb-4 overflow-x-auto uppercase font-black">
+                <button id="tab-lan" onclick="mudarTab('lan')" class="tab-btn tab-active">Novo Lançamento</button>
+                <button id="tab-regras" onclick="mudarTab('regras')" class="tab-btn">Lançamentos/Regras</button>
+                <button id="tab-cat" onclick="mudarTab('cat')" class="tab-btn">Categorias</button>
+				<button id="tab-config" onclick="mudarTab('config')" class="tab-btn whitespace-nowrap">⚙️ CONFIG</button>
+            </div>
+            <div id="content-lan" class="space-y-3 font-black">
+                <input type="hidden" id="edit-rule-id">
+                <div class="grid grid-cols-2 gap-2 text-[9px] text-slate-400 uppercase">
+                    <div>Tipo<select id="m-tipo" class="w-full border rounded p-2 text-[10px] font-black uppercase" onchange="popularCategoriasSelect()"><option value="debit">Débito</option><option value="credit">Crédito</option></select></div>
+                    <div>Categoria<select id="m-categoria" class="w-full border rounded p-2 text-[10px] font-black uppercase"></select></div>
+                </div>
+                <input type="text" id="m-desc" class="w-full border rounded p-2 text-[10px] font-black" placeholder="DESCRIÇÃO (Aceita minúsculas)">
+                <input type="text" id="m-valor" class="w-full border rounded p-2 text-[10px] font-black" onfocus="this.select()" onblur="formatarCampoMoeda(this)" placeholder="0.00">
+                <select id="m-freq" class="w-full border rounded p-2 text-[10px] font-black uppercase" onchange="ajustarOpcoesFreq()"><option value="monthly">Mensal</option><option value="weekly">Semanal</option><option value="bi-weekly">Quinzenal</option><option value="specific_months">Meses Específicos</option></select>
+                <div id="opcoes-freq" class="bg-blue-50 p-2 rounded text-[10px] border border-blue-100 uppercase"></div>
+                <div class="grid grid-cols-2 gap-2 text-[9px] text-slate-400 uppercase">
+                    <div>Início<input type="date" id="m-inicio" class="w-full border rounded p-1 text-xs"></div>
+                    <div>Limite<input type="date" id="m-fim" class="w-full border rounded p-1 text-xs"></div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="salvarModelo()" id="btn-salvar-modelo" class="flex-1 bg-blue-600 text-white py-2 rounded text-[10px] font-black uppercase shadow">SALVAR</button>
+                    <button id="btn-excluir-regra" onclick="deletarRegraEdicao()" class="hidden flex-1 bg-red-600 text-white py-2 rounded text-[10px] font-black uppercase shadow" style="display: none !important;">Excluir Regra</button>
+                    <button id="btn-limpar" onclick="limparFormLancamento()" class="flex-1 bg-slate-100 text-slate-400 py-2 rounded text-[10px] uppercase font-black">LIMPAR / NOVO</button>
+                </div>
+            </div>
+            <div id="content-regras" class="hidden max-h-64 overflow-y-auto uppercase font-black text-[9px]"><table class="w-full text-left font-black uppercase"><tbody id="lista-regras"></tbody></table></div>
+            <div id="content-cat" class="hidden space-y-3 font-black text-[9px] uppercase"><div class="bg-slate-50 p-3 rounded-lg border font-black uppercase"><input type="hidden" id="edit-cat-id"><div class="flex flex-col gap-2"><input type="text" id="new-cat-name" class="border rounded p-2 text-[10px]" placeholder="NOME CATEGORIA"><div class="flex gap-2"><select id="new-cat-type" class="flex-1 border rounded p-2 uppercase"><option value="debit">Débito</option><option value="credit">Crédito</option></select><button id="btn-salvar-cat" onclick="salvarCategoria()" class="bg-green-600 text-white px-4 py-2 rounded shadow uppercase">SALVAR</button></div></div></div><div class="max-h-52 overflow-y-auto"><table class="w-full text-left font-black"><tbody id="lista-categorias"></tbody></table></div></div>
+			
+			<!-- TAB: CONFIGURAÇÕES DE LIMITES -->
+            <div id="content-config" class="hidden space-y-4 uppercase text-[10px] font-black">
+                <div class="bg-slate-50 p-4 rounded-lg border border-blue-200">
+                    <h3 class="text-blue-700 mb-4 italic">DEFINA SEUS LIMITES PESSOAIS</h3>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-slate-400 mb-1">LIMITE MÍNIMO (ALERTA ROSA) ($)</label>
+                            <input type="text" id="cfg-min" class="w-full border rounded p-2 text-xs font-black outline-none focus:ring-1 focus:ring-blue-400" onfocus="this.select()" onblur="formatarCampoMoeda(this)">
+                            <p class="normal-case font-normal text-slate-400 mt-1 italic">Abaixo deste valor, o saldo ficará rosa.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-slate-400 mb-1">LIMITE ALTO (DESTAQUE AZUL) ($)</label>
+                            <input type="text" id="cfg-max" class="w-full border rounded p-2 text-xs font-black outline-none focus:ring-1 focus:ring-blue-400" onfocus="this.select()" onblur="formatarCampoMoeda(this)">
+                            <p class="normal-case font-normal text-slate-400 mt-1 italic">Acima deste valor, o saldo ficará azul escuro sublinhado.</p>
+                        </div>
+
+                        <button onclick="salvarConfiguracoes()" class="w-full bg-blue-600 text-white py-3 rounded shadow hover:bg-blue-700 transition">SALVAR CONFIGURAÇÕES</button>
+                    </div>
+					<!-- BOTÃO DE BACKUP (EXPORTAR) -->
+                        <div class="mt-8 border-t pt-4">
+                            <h3 class="text-blue-700 mb-2 italic">BACKUP DOS DADOS</h3>
+                            <button onclick="exportarParaCSV()" class="w-full bg-slate-700 text-white py-3 rounded shadow hover:bg-slate-800 transition">
+                                📥 EXPORTAR LANÇAMENTOS (EXCEL/SHEETS)
+                            </button>
+                            <p class="normal-case font-normal text-slate-400 mt-1 italic text-center">Gera um arquivo com todo o seu histórico de lançamentos.</p>
+                        </div>
+                </div>
+            </div>
+			
+        </div>
+    </div>
+
+    <!-- UI PRINCIPAL -->
+    <div class="bg-white shadow-sm p-2 mb-3 border-b font-black uppercase">
+        <div class="max-w-7xl mx-auto flex justify-between items-center px-4">
+            <h1 class="text-lg text-blue-600 tracking-tighter italic">Finanças de <span id="nome-usuario">...</span></h1>
+            <div class="flex gap-2 items-center font-black uppercase">
+                <button onclick="abrirAdmin()" class="bg-blue-600 text-white px-3 py-1 rounded text-[10px] shadow">⚙️ Lançamentos</button>
+                <button id="btn-master-users" onclick="abrirGestaoUsuarios()" class="hidden bg-orange-500 text-white px-3 py-1 rounded text-[10px] shadow">👥 Gerenciar Usuários</button>
+                <button onclick="logout()" class="text-[10px] text-red-500 uppercase ml-2 bg-transparent cursor-pointer font-black border-none">Sair</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 mb-3">
+        <div class="grid grid-cols-6 gap-1 mb-1 font-black uppercase" id="linha-meses-1"></div>
+        <div class="grid grid-cols-6 gap-1 uppercase font-black" id="linha-meses-2"></div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 font-black uppercase">
+        <div class="bg-blue-50 border border-blue-200 rounded-md p-1.5 mb-4 shadow-sm flex items-center justify-between flex-wrap gap-2 uppercase">
+            <div class="flex items-center gap-3">
+                <h3 class="text-[10px] text-blue-700 italic font-black uppercase">Saldo Bancário Atual ($):</h3>
+                <input type="date" id="data-banco" class="border rounded px-2 py-1 text-[10px] font-black outline-none shadow-inner">
+                <input type="text" id="saldo-banco" class="border rounded px-2 py-1 text-[10px] font-black w-28 outline-none shadow-inner" onfocus="this.select()" onblur="formatarCampoMoeda(this)">
+            </div>
+            <button onclick="verificarPendenciasAntesDeSalvar()" class="bg-blue-600 text-white px-5 py-1.5 rounded text-[10px] shadow hover:bg-blue-700 transition uppercase font-black">Atualizar Saldo</button>
+        </div>
+
+        <div class="bg-white shadow-xl rounded-lg overflow-hidden border border-slate-300">
+            <div class="px-4 py-2 border-b flex justify-between items-center bg-slate-50 italic text-sm uppercase">
+                <h2 id="mes-selecionado-nome">...</h2>
+                <div class="flex gap-1 font-black uppercase">
+                    <button onclick="mudarMes(-1)" class="bg-white border px-3 py-1 rounded text-[9px] shadow-sm">⬅ Ant</button>
+                    <button onclick="irParaHoje()" class="bg-white border px-3 py-1 rounded text-[9px] text-blue-600 shadow-sm">Hoje</button>
+                    <button onclick="mudarMes(1)" class="bg-white border px-3 py-1 rounded text-[9px] shadow-sm">Próx ➡</button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse table-fixed">
+                    <colgroup><col style="width: 75px;"><col style="width: 100px;"><col style="width: auto;"><col style="width: 95px;"><col style="width: 95px;"><col style="width: 95px;"><col style="width: 95px;"><col style="width: 95px;"></colgroup>
+                    <thead>
+                        <tr class="bg-slate-200 text-[9px] text-slate-600 font-black uppercase italic">
+                            <th class="p-1 border-v text-center">Data</th><th class="p-1 border-v text-center">Categoria</th><th class="p-1 border-v text-center">Lançamentos</th><th colspan="2" class="p-1 text-center border-v">Realizados</th><th colspan="2" class="p-1 text-center border-v">Previstos</th><th class="p-1 text-right">Saldo</th>
+                        </tr>
+                        <tr class="bg-slate-100 text-[8px] text-slate-500 border-b text-center font-black uppercase">
+                            <th class="p-1 border-v"></th><th class="p-1 border-v"></th><th class="p-1 border-v"></th><th>Deb (-)</th><th class="border-v">Cred (+)</th><th>Deb (-)</th><th class="border-v">Cred (+)</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-corpo" class="txt-tabela"></tbody>
+                    <tfoot id="tabela-rodape"></tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PENDENCIAS -->
+    <div id="modal-empurrao" class="modal-bg hidden">
+        <div class="modal-content shadow-2xl font-black text-[10px] uppercase"><h2 class="text-sm text-red-600 mb-2">Pendências</h2><div id="lista-pendencias" class="space-y-2 pr-1"></div><div class="mt-4 pt-3 border-t"><button onclick="finalizarProcessamentoEmpurrao()" class="w-full bg-blue-600 text-white py-2 rounded font-black uppercase">Concluir</button></div></div>
+    </div>
+
+    <script>
+        const URL_PROJETO = 'https://vmonqerlroepcadfyrre.supabase.co'; 
+        const CHAVE_ANON = 'sb_publishable_aFXJE1zlqp-FPWB3UV-GIw__y6fL9QA'; 
+        const conexao = supabase.createClient(URL_PROJETO, CHAVE_ANON);
+        const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+        
+		let dataVisualizacao = new Date(), usuarioId = null, saldoBaseGlobal = 0, dataBaseGlobal = '', categoriasAtuais = [], itemParaBaixa = null, itemParaEdicaoIndividual = null, transacoesDesteMes = [], regrasNaMemoria = [], limiteMinGlobal = 300, limiteMaxGlobal = 5000;
+
+        window.onload = async () => {
+            const { data: { session } } = await conexao.auth.getSession();
+            if (!session) { window.location.href = 'login.html'; return; }
+            usuarioId = session.user.id;
+            const { data: profile } = await conexao.from('profiles').select('*').eq('id', usuarioId).single();
+            if (profile) {
+                document.getElementById('nome-usuario').innerText = profile.login;
+                if (profile.role === 'master') document.getElementById('btn-master-users').classList.remove('hidden');
+                saldoBaseGlobal = profile.last_bank_balance || 0;
+				limiteMinGlobal = profile.min_balance_limit || 300;
+                limiteMaxGlobal = profile.max_balance_limit || 5000;
+                dataBaseGlobal = profile.last_balance_date || new Date().toLocaleDateString('en-CA');
+                document.getElementById('data-banco').value = dataBaseGlobal;
+                document.getElementById('saldo-banco').value = formatarMoeda(saldoBaseGlobal);
+                dataVisualizacao = new Date(dataBaseGlobal + "T00:00:00");
+                document.getElementById('data-banco').max = getHojeLocal();
+            }
+            await carregarCategorias();
+			await carregarRegras();
+            ajustarOpcoesFreq();
+            setTimeout(async () => { await atualizarTela(); }, 300);
+        };
+
+        function formatarMoeda(v) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v); }
+        function formatarCampoMoeda(i) { let v = i.value.replace(/,/g, ''); if (!isNaN(v) && v !== "") i.value = formatarMoeda(parseFloat(v)); }
+        function getHojeLocal() { return new Date().toLocaleDateString('en-CA'); }
+        function getCorSaldo(v, isMax = false) { 
+            if (v < 0) return 'saldo-negativo'; 
+            if (v < limiteMinGlobal) return 'saldo-rosa'; 
+            if (isMax && v >= limiteMaxGlobal) return 'saldo-azul-escuro'; 
+            return 'saldo-azul'; 
+        }
+        function mostrarAviso(t, tp) { const a = document.getElementById('custom-alert'); a.className = `alert-${tp}`; document.getElementById('alert-text').innerText = t; a.style.display = 'block'; setTimeout(() => a.style.display = 'none', 3000); }
+        
+		// Função que é chamada ao clicar na linha da planilha
+        function perguntarTipoEdicao(transacao) {
+            // Guarda os dados da transação clicada para usar depois
+            itemParaEdicaoIndividual = transacao;
+            
+            // Mostra o modal de decisão (Individual ou Global)
+            document.getElementById('modal-decisao-edicao').style.display = 'flex';
+        }
+
+        // Se o usuário escolher "Regra Global"
+        function prepararEdicaoGlobal() {
+            // 1. Fecha a janelinha de escolha
+            document.getElementById('modal-decisao-edicao').style.display = 'none';
+            
+            // 2. Abre o Painel do Gerenciador que estava escondido
+            document.getElementById('modal-admin').classList.remove('hidden');
+            
+            // 3. Preenche os dados da regra para editar
+            editarRegraPorId(itemParaEdicaoIndividual.model_id);
+        }
+
+        // Se o usuário escolher "Apenas este lançamento"
+        function prepararEdicaoIndividual() {
+            document.getElementById('modal-decisao-edicao').style.display = 'none';
+            
+            // Vamos usar o modal de "Baixa" que você já tem, mas para editar o valor
+            itemParaBaixa = itemParaEdicaoIndividual; // O modal de baixa usa essa variável
+            document.getElementById('baixa-desc').innerText = itemParaBaixa.description;
+            document.getElementById('baixa-data').value = itemParaBaixa.date;
+            
+            // Pega o valor (seja débito ou crédito) para mostrar na caixinha
+            const valorAtual = itemParaBaixa.predicted_debit > 0 ? itemParaBaixa.predicted_debit : itemParaBaixa.predicted_credit;
+            document.getElementById('baixa-valor').value = formatarMoeda(valorAtual);
+            
+            // Abre o modal de edição de valor
+            document.getElementById('modal-baixa').classList.remove('hidden');
+        }
+		
+		// Funções para Edição Individual (O Cadeado)
+        function perguntarTipoEdicao(id) {
+            // Busca o lançamento na memória
+            const transacao = transacoesDesteMes.find(t => t.id === id);
+            if (!transacao) return;
+
+            itemParaEdicaoIndividual = transacao;
+            document.getElementById('modal-decisao-edicao').style.display = 'flex';
+        }
+
+        function prepararEdicaoIndividual() {
+            document.getElementById('modal-decisao-edicao').style.display = 'none';
+            itemParaBaixa = itemParaEdicaoIndividual; 
+            document.getElementById('baixa-desc').innerText = itemParaBaixa.description;
+            document.getElementById('baixa-data').value = itemParaBaixa.date;
+            const valorAtual = itemParaBaixa.predicted_debit > 0 ? itemParaBaixa.predicted_debit : itemParaBaixa.predicted_credit;
+            document.getElementById('baixa-valor').value = formatarMoeda(valorAtual);
+            document.getElementById('modal-baixa').classList.remove('hidden');
+        }
+		
+		function abrirAdmin() { limparFormLancamento(); document.getElementById('modal-admin').classList.remove('hidden'); popularCategoriasSelect(); mudarTab('lan'); }
+        function fecharModal() { document.getElementById('modal-admin').classList.add('hidden'); }
+        function fecharModalBaixa() { document.getElementById('modal-baixa').classList.add('hidden'); }
+        
+			
+		async function confirmarBaixa() {
+            const dataR = document.getElementById('baixa-data').value;
+            const valorR = parseFloat(document.getElementById('baixa-valor').value.replace(/,/g, ''));
+
+            if (!itemParaBaixa) return;
+
+            // Criamos o pacote de atualização
+            let up = { 
+                date: dataR, 
+                is_manual_value: true // ISSO ATIVA O CADEADO NO BANCO
+            };
+            
+            // Verifica se o item original é débito ou crédito para salvar na coluna certa
+            if (itemParaBaixa.predicted_debit > 0 || itemParaBaixa.realized_debit > 0) {
+                up.predicted_debit = valorR;
+                up.predicted_credit = 0;
+            } else {
+                up.predicted_credit = valorR;
+                up.predicted_debit = 0;
+            }
+
+            // Atualiza apenas este lançamento específico no banco de dados
+            const { error } = await conexao.from('transactions').update(up).eq('id', itemParaBaixa.id);
+
+            if (error) {
+                alert("ERRO AO SALVAR VALOR INDIVIDUAL: " + error.message);
+            } else {
+                fecharModalBaixa();
+                await atualizarTela();
+                mostrarAviso("VALOR INDIVIDUAL ATUALIZADO (CADEADO ATIVO)!", "success");
+            }
+        }
+		
+		function irParaHoje() { dataVisualizacao = new Date(); atualizarTela(); }
+        function mudarMes(d) { dataVisualizacao.setMonth(dataVisualizacao.getMonth() + d); atualizarTela(); }
+        function logout() { conexao.auth.signOut().then(() => window.location.href = 'login.html'); }
+
+        // --- EXCLUSÃO PADRONIZADA ---
+        function pedirConfirmacao(titulo, texto, callback) {
+            const modal = document.getElementById('modal-confirmacao');
+            const btnSim = document.getElementById('btn-confirmar-sim');
+            document.getElementById('confirm-titulo').innerText = titulo;
+            document.getElementById('confirm-texto').innerText = texto;
+            modal.style.display = 'flex';
+            modal.classList.remove('hidden');
+            btnSim.onclick = async () => {
+                btnSim.innerText = "PROCESSANDO...";
+                await callback();
+                modal.style.display = 'none';
+                btnSim.innerText = "SIM, EXCLUIR";
+            };
+        }
+        function fecharModalConfirmacao() { document.getElementById('modal-confirmacao').style.display = 'none'; }
+
+        async function deletarRegra(id) {
+            pedirConfirmacao("EXCLUIR REGRA?", "O PASSADO FICA, MAS O FUTURO PREVISTO SOME.", async () => {
+                await conexao.from('transactions').delete().eq('model_id', id).eq('status', 'predicted').gte('date', getHojeLocal());
+                await conexao.from('transaction_models').delete().eq('id', id);
+                fecharModal();
+					await carregarRegras(); // Adicione esta linha aqui
+					await atualizarTela();
+            });
+        }
+        
+		async function deletarCat(id) {
+            // 1. Verifica se existe alguma regra (model) sua usando esta categoria
+            const { data: emUso } = await conexao.from('transaction_models')
+                .select('id')
+                .eq('category', id)
+                .eq('user_id', usuarioId);
+
+            if (emUso && emUso.length > 0) {
+                alert("NÃO PODE EXCLUIR: EXISTEM LANÇAMENTOS PREVISTOS OU REGRAS USANDO ESTA CATEGORIA.");
+                fecharModalConfirmacao();
+                return;
+            }
+
+            pedirConfirmacao("EXCLUIR CATEGORIA?", "ELA SUMIRÁ DA LISTA, MAS O HISTÓRICO FICA.", async () => {
+                const { error } = await conexao.from('categories')
+                    .update({ is_active: false })
+                    .eq('id', id)
+                    .eq('user_id', usuarioId);
+                
+                if (error) {
+                    alert("ERRO AO EXCLUIR: " + error.message);
+                } else {
+                    setTimeout(async () => {
+                        await carregarCategorias(); 
+                        renderizarListaCategorias();
+                        mostrarAviso("REMOVIDA", "success");
+                    }, 500);
+                }
+            });
+        }
+		
+        async function deletarLancamentoIndividual() {
+            pedirConfirmacao("DELETAR ITEM?", "ESTE ITEM SUMIRÁ DA PLANILHA.", async () => {
+                await conexao.from('transactions').delete().eq('id', itemParaBaixa.id);
+                fecharModalBaixa(); await atualizarTela();
+            });
+        }
+
+        // --- LÓGICA DO DIA 31 ---
+        function obterDataReal(ano, mes, diaDesejado) {
+            const ultimoDia = new Date(ano, mes + 1, 0).getDate();
+            return new Date(ano, mes, Math.min(diaDesejado, ultimoDia));
+        }
+
+        async function salvarModelo() {
+            const btn = document.getElementById('btn-salvar-modelo');
+            const idEdit = document.getElementById('edit-rule-id').value;
+            const desc = document.getElementById('m-desc').value.trim();
+            const valor = parseFloat(document.getElementById('m-valor').value.replace(/,/g, ''));
+            const tipo = document.getElementById('m-tipo').value;
+            const freq = document.getElementById('m-freq').value;
+            const dInStr = document.getElementById('m-inicio').value;
+            const dFimStr = document.getElementById('m-fim').value;
+
+            if (!desc || isNaN(valor) || !dInStr) {
+                alert("POR FAVOR, PREENCHA OS CAMPOS OBRIGATÓRIOS!");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "GRAVANDO...";
+
+            // Captura as opções de frequência
+            let dM = null, dS = null, mL = null;
+            if(freq === 'monthly') dM = parseInt(document.getElementById('m-dia-escolhido').value);
+            else if(freq === 'weekly' || freq === 'bi-weekly') dS = parseInt(document.getElementById('m-dia-escolhido').value);
+            else if(freq === 'specific_months') mL = Array.from(document.querySelectorAll('.mes-check:checked')).map(cb => parseInt(cb.value));
+
+            const ruleData = { user_id: usuarioId, description: desc, type: tipo, category: document.getElementById('m-categoria').value, base_value: valor, frequency_type: freq, start_date: dInStr, end_date: dFimStr || null, day_of_month: dM, day_of_week: dS, specific_months: mL };
+
+            try {
+                let modelIdParaUso = idEdit;
+                if (idEdit) {
+                    await conexao.from('transaction_models').update(ruleData).eq('id', idEdit);
+                    await conexao.from('transactions').update({ description: desc }).eq('model_id', idEdit);
+                    
+					await conexao.from('transactions').delete().eq('model_id', idEdit).eq('status', 'predicted').eq('is_manual_value', false).gte('date', getHojeLocal());
+					
+					
+                } else {
+                    const { data: novaRegra, error: erroRegra } = await conexao.from('transaction_models').insert([ruleData]).select().single();
+                    if (erroRegra) throw erroRegra;
+                    modelIdParaUso = novaRegra.id;
+                }
+
+                // GERAÇÃO DOS LANÇAMENTOS
+                let lanches = [], dC = new Date(dInStr + "T00:00:00");
+                // Se não tiver data limite, projeta 24 meses. Se tiver, usa a data limite.
+                const dLimite = dFimStr ? new Date(dFimStr + "T00:00:00") : new Date(new Date().getFullYear() + 2, new Date().getMonth(), new Date().getDate());
+                const hoje = new Date(getHojeLocal() + "T00:00:00");
+
+                // Buscamos no banco quais datas deste item já possuem o "CADEADO"
+                const { data: manuais } = await conexao.from('transactions')
+                    .select('date')
+                    .eq('model_id', modelIdParaUso)
+                    .eq('is_manual_value', true);
+                
+                const datasComCadeado = manuais ? manuais.map(m => m.date) : [];
+
+                const prepararItem = (dataFinal) => {
+                    const df = new Date(dataFinal.getFullYear(), dataFinal.getMonth(), dataFinal.getDate());
+                    const lim = new Date(dLimite.getFullYear(), dLimite.getMonth(), dLimite.getDate());
+                    
+                    // Cria a data no formato YYYY-MM-DD respeitando o fuso horário local
+                    const dStr = dataFinal.toLocaleDateString('en-CA'); 
+
+                    // SÓ ADICIONA O NOVO SE A DATA NÃO TIVER UM CADEADO ATIVO
+                    if (df >= hoje && df <= lim && !datasComCadeado.includes(dStr)) {
+                        lanches.push({ 
+                            user_id: usuarioId, 
+                            model_id: modelIdParaUso, 
+                            description: desc, 
+                            date: dStr, 
+                            predicted_debit: tipo === 'debit' ? valor : 0, 
+                            predicted_credit: tipo === 'credit' ? valor : 0, 
+                            status: 'predicted',
+                            is_manual_value: false 
+                        });
+                    }
+                };
+
+                if (freq === 'monthly') {
+                    const diaDesejado = dM;
+                    for(let i=0; i<25; i++) {
+                        let anoA = dC.getFullYear(); let mesA = dC.getMonth() + i;
+                        let ultimoD = new Date(anoA, mesA + 1, 0).getDate();
+                        let dataCalculada = new Date(anoA, mesA, Math.min(diaDesejado, ultimoD));
+                        
+                        // Se for o primeiro mês e o dia desejado for antes do início, 
+                        // forçamos para o dia de início para não perder o lançamento
+                        if (i === 0 && dataCalculada < dC) {
+                            prepararItem(dC); 
+                        } else {
+                            prepararItem(dataCalculada);
+                        }
+                    }
+                } else if (freq === 'weekly' || freq === 'bi-weekly') {
+                    let dTemp = new Date(dC);
+                    while(dTemp.getDay() !== (dS || 5)) dTemp.setDate(dTemp.getDate() + 1);
+                    while(dTemp <= dLimite && lanches.length < 104) {
+                        prepararItem(new Date(dTemp));
+                        dTemp.setDate(dTemp.getDate() + (freq === 'weekly' ? 7 : 14));
+                    }
+                } else if (freq === 'specific_months') {
+                    for(let i=0; i<25; i++) {
+                        let dBase = new Date(dC.getFullYear(), dC.getMonth() + i, 1);
+                        if (mL && mL.includes(dBase.getMonth())) {
+                            let ultimoD = new Date(dBase.getFullYear(), dBase.getMonth() + 1, 0).getDate();
+                            prepararItem(new Date(dBase.getFullYear(), dBase.getMonth(), Math.min(dC.getDate(), ultimoD)));
+                        }
+                    }
+                }
+
+                if (lanches.length > 0) {
+                    const { error: errIns } = await conexao.from('transactions').insert(lanches);
+                    if (errIns) throw errIns;
+                }
+
+                btn.disabled = false;
+                btn.innerText = "SALVAR";
+                
+                // Pausa de meio segundo para garantir que o banco de dados salvou tudo
+                setTimeout(async () => {
+                    await carregarRegras(); // Atualiza a lista de regras na memória
+                    await atualizarTela();  // Recarrega a planilha na tela
+                    fecharModal();          // Fecha a janela de edição
+                    mostrarAviso("SALVO COM SUCESSO!", "success");
+                }, 500);
+
+            } catch (err) {
+                console.error(err);
+                alert("ERRO AO SALVAR: " + err.message);
+                btn.disabled = false;
+                btn.innerText = "SALVAR";
+            }
+        }
+
+        // --- SISTEMA RESTANTE ---
+        async function atualizarTela() {
+            const anoF = dataVisualizacao.getFullYear(), mesF = dataVisualizacao.getMonth();
+            document.getElementById('mes-selecionado-nome').innerText = mesesNomes[mesF] + " " + anoF;
+            const { data: trans } = await conexao.from('transactions').select('*').order('date', { ascending: true }).order('description', { ascending: true });
+            transacoesDesteMes = trans || [];
+			let rb = saldoBaseGlobal, db = new Date(dataBaseGlobal + "T00:00:00"), statsMeses = Array.from({length: 12}, () => ({ min: null, max: null }));
+            
+			let totRD = 0, totRC = 0, totPD = 0, totPC = 0, rbAcumulado = saldoBaseGlobal, html = "";
+            let primeiroDiaDoMesVisualizado = new Date(anoF, mesF, 1);
+            let linhaSaldoAnteriorInserida = false;
+			
+            if (trans) {
+                trans.forEach(t => {
+                    let dt = new Date(t.date + "T00:00:00");
+                    if (t.status === 'predicted' && dt >= db) rb += (t.predicted_credit - t.predicted_debit);
+                    if (dt.getFullYear() === anoF) { let mIdx = dt.getMonth(); if (statsMeses[mIdx].min === null || rb < statsMeses[mIdx].min) statsMeses[mIdx].min = rb; if (statsMeses[mIdx].max === null || rb > statsMeses[mIdx].max) statsMeses[mIdx].max = rb; }
+                });
+                
+				trans.forEach(t => {
+                    let dt = new Date(t.date + "T00:00:00");
+                    
+                    // 1. Acumula o saldo de tudo o que aconteceu antes do mês que estamos vendo
+                    if (t.status === 'predicted' && dt >= db) {
+                        // Se o item for de meses anteriores ao que estou vendo, só atualiza o saldo
+                        if (dt < primeiroDiaDoMesVisualizado) {
+                            rbAcumulado += (t.predicted_credit - t.predicted_debit);
+                        }
+                    }
+
+                    // 2. Quando chegamos no mês que o usuário está visualizando...
+                    if (dt.getMonth() === mesF && dt.getFullYear() === anoF) {
+                        
+                        // SE NÃO FOR O MÊS DA ÂNCORA, insere a linha de "Saldo do mês anterior" uma única vez no topo
+                        if (!linhaSaldoAnteriorInserida && (mesF !== db.getMonth() || anoF !== db.getFullYear())) {
+                            let dataUltimoDiaAnterior = new Date(anoF, mesF, 0).toLocaleDateString('pt-br');
+                            html += `<tr class="bg-slate-50 border-b italic">
+                                <td class="p-1 border-v text-center text-slate-400">${dataUltimoDiaAnterior}</td>
+                                <td class="p-1 border-v text-slate-400">---</td>
+                                <td class="p-1 border-v text-blue-700 font-black">SALDO DO MÊS ANTERIOR</td>
+                                <td colspan="4" class="p-1 border-v"></td>
+                                <td class="p-1 col-saldo-val ${getCorSaldo(rbAcumulado)}">${formatarMoeda(rbAcumulado)}</td>
+                            </tr>`;
+                            linhaSaldoAnteriorInserida = true;
+                        }
+
+                        // 3. Agora processa o saldo e a linha do item atual do mês
+                        const isR = t.status === 'realized';
+                        if (!isR && dt >= db) {
+                            rbAcumulado += (t.predicted_credit - t.predicted_debit);
+                        }
+
+                        if (isR) { totRD += t.realized_debit; totRC += t.realized_credit; }
+                        else { totPD += t.predicted_debit; totPC += t.predicted_credit; }
+
+                        // Identifica se é Débito ou Crédito para definir as cores de fundo
+                        const ehDebito = (t.predicted_debit > 0 || t.realized_debit > 0);
+                        const classeCor = ehDebito ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700';
+
+                        const regraEncontrada = regrasNaMemoria.find(r => r.id === t.model_id);
+                        const categoriaNome = regraEncontrada ? (categoriasAtuais.find(c => c.id === regraEncontrada.category)?.name || '-') : '-';
+
+                        html += `<tr onclick="perguntarTipoEdicao('${t.id}')" class="border-b hover:opacity-80 cursor-pointer ${classeCor} ${isR ? 'opacity-40' : ''}">
+                            <td class="p-1 col-data border-v text-center uppercase font-black">${t.date.split('-').reverse().join('/')}</td>
+                            <td class="p-1 border-v truncate font-black uppercase text-[9px]">${categoriaNome}</td>
+                            <td class="p-1 border-v truncate font-black" style="text-transform: none;" title="${t.description}">${t.description}</td>
+                            <td class="p-1 debito-real font-black">${isR && t.realized_debit > 0 ? formatarMoeda(t.realized_debit) : '-'}</td>
+                            <td class="p-1 border-v credito-real font-black">${isR && t.realized_credit > 0 ? formatarMoeda(t.realized_credit) : '-'}</td>
+                            <td class="p-1 debito-prev font-black">${!isR && t.predicted_debit > 0 ? formatarMoeda(t.predicted_debit) : '-'}</td>
+                            <td class="p-1 border-v credito-prev font-black">${!isR && t.predicted_credit > 0 ? formatarMoeda(t.predicted_credit) : '-'}</td>
+                            <td class="p-1 col-saldo-val ${getCorSaldo(rbAcumulado)}">${isR ? '-' : formatarMoeda(rbAcumulado)}</td>
+                        </tr>`;
+                    }
+                });
+				
+            }
+            renderizarReguaMeses(statsMeses);
+            document.getElementById('tabela-corpo').innerHTML = html || '<tr><td colspan="8" class="p-10 text-center uppercase font-black text-slate-300">Vazio</td></tr>';
+            document.getElementById('tabela-rodape').innerHTML = `<tr class="bg-slate-200 border-t-2 border-slate-400 font-black text-[10px]"><td colspan="3" class="p-1 text-right border-v italic uppercase">Totais:</td>	<td class="p-1 text-center debito-real">${formatarMoeda(totRD)}</td><td class="p-1 text-center border-v credito-real">${formatarMoeda(totRC)}</td><td class="p-1 text-center debito-prev font-black">${formatarMoeda(totPD)}</td><td class="p-1 text-center border-v credito-prev font-black">${formatarMoeda(totPC)}</td><td class="p-1"></td></tr>`;
+        }
+
+        async function carregarCategorias() { 
+            // Busca apenas as categorias pertencentes ao usuário logado
+            const { data, error } = await conexao.from('categories')
+                .select('*')
+                .eq('user_id', usuarioId)
+                .order('name'); 
+
+            if (error) {
+                console.error("Erro ao carregar categorias:", error);
+                return;
+            }
+            categoriasAtuais = data || []; 
+            popularCategoriasSelect(); 
+        }
+        
+		function mudarTab(tab) { 
+            // Ativa o visual do botão clicado
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-active')); 
+            document.getElementById('tab-' + tab).classList.add('tab-active'); 
+            
+            // Mostra o conteúdo da aba certa e esconde as outras
+            document.getElementById('content-lan').classList.toggle('hidden', tab !== 'lan'); 
+            document.getElementById('content-regras').classList.toggle('hidden', tab !== 'regras'); 
+            document.getElementById('content-cat').classList.toggle('hidden', tab !== 'cat'); 
+            document.getElementById('content-config').classList.toggle('hidden', tab !== 'config'); 
+
+            // Executa as funções específicas de cada aba
+            if (tab === 'cat') renderizarListaCategorias(); 
+            if (tab === 'regras') carregarRegras(); 
+            if (tab === 'config' && typeof carregarLimitesNoForm === "function") carregarLimitesNoForm();
+        }
+				
+		function editarRegraPorId(id) {
+            // 1. Procura a regra na memória
+            const r = regrasNaMemoria.find(item => item.id === id);
+            if (!r) return;
+
+            // 2. Abre a aba de preenchimento
+            mudarTab('lan');
+            
+            // 3. Preenche os campos básicos
+            document.getElementById('edit-rule-id').value = r.id;
+            document.getElementById('m-desc').value = r.description;
+            
+			document.getElementById('m-valor').value = formatarMoeda(r.base_value);
+			document.getElementById('m-tipo').value = r.type;
+			popularCategoriasSelect(); // Atualiza a lista de acordo com o tipo (Débito/Crédito)
+			document.getElementById('m-categoria').value = r.category; // Seleciona a categoria da regra
+			document.getElementById('m-freq').value = r.frequency_type;
+			
+            document.getElementById('m-inicio').value = r.start_date;
+            document.getElementById('m-fim').value = r.end_date || "";
+            
+            // 4. Ajusta as opções visuais (dia do mês/semana)
+            ajustarOpcoesFreq();
+            
+            // 5. Preenche os detalhes específicos (dia do mês, etc)
+            setTimeout(() => {
+                if(r.day_of_month && document.getElementById('m-dia-escolhido')) 
+                    document.getElementById('m-dia-escolhido').value = r.day_of_month;
+                if(r.day_of_week !== null && document.getElementById('m-dia-escolhido')) 
+                    document.getElementById('m-dia-escolhido').value = r.day_of_week;
+                if(r.specific_months) {
+                    document.querySelectorAll('.mes-check').forEach(cb => {
+                        if(r.specific_months.includes(parseInt(cb.value))) cb.checked = true;
+                    });
+                }
+            }, 100);
+
+            // 6. FORÇA O APARECIMENTO DO BOTÃO VERMELHO (REFORÇADO)
+            const btnExcluir = document.getElementById('btn-excluir-regra');
+            if(btnExcluir) {
+                btnExcluir.style.setProperty('display', 'block', 'important');
+                btnExcluir.classList.remove('hidden');
+            }
+
+            // 7. Mostra o botão de cancelar
+            if(document.getElementById('btn-cancelar-edit')) {
+                document.getElementById('btn-cancelar-edit').classList.remove('hidden');
+            }
+        }
+		
+        function renderizarReguaMeses(stats) { const l1 = document.getElementById('linha-meses-1'), l2 = document.getElementById('linha-meses-2'); l1.innerHTML = ''; l2.innerHTML = ''; mesesNomes.forEach((nome, i) => { const c = document.createElement('div'); c.className = 'card-mes shadow-sm'; let min = stats[i].min ?? 0; let max = stats[i].max ?? 0; c.innerHTML = `<div class="text-[8px] font-black text-slate-400 uppercase mb-0.5">${nome}</div><div class="text-[9px] font-black ${getCorSaldo(min)}">${formatarMoeda(min)}</div><div class="text-[9px] font-black ${getCorSaldo(max, true)}">${formatarMoeda(max)}</div>`; if (i < 6) l1.appendChild(c); else l2.appendChild(c); }); }
+        
+		function renderizarListaCategorias() {
+			// Filtra para mostrar apenas categorias que NÃO foram desativadas
+			const categoriasVivas = categoriasAtuais.filter(c => c.is_active !== false);
+
+			document.getElementById('lista-categorias').innerHTML = categoriasVivas.map(c => `
+				<tr class="border-b">
+					<td class="p-1 cursor-pointer text-blue-600 font-black" onclick='editarCat(${JSON.stringify(c)})'>${c.name}</td>
+					<td class="p-1 text-slate-400 font-black">${c.type}</td>
+					<td class="p-1 text-red-500 text-center cursor-pointer font-black" onclick="deletarCat('${c.id}')">X</td>
+				</tr>
+			`).join('');
+		}
+		
+        function editarCat(c) { document.getElementById('edit-cat-id').value = c.id; document.getElementById('new-cat-name').value = c.name; document.getElementById('new-cat-type').value = c.type; document.getElementById('btn-salvar-cat').innerText = "ATUALIZAR"; }
+        function limparFormCategoria() { document.getElementById('edit-cat-id').value = ""; document.getElementById('new-cat-name').value = ""; document.getElementById('btn-salvar-cat').innerText = "ADD"; }
+        
+		async function carregarRegras() {
+            const { data } = await conexao.from('transaction_models').select('*').order('description');
+            regrasNaMemoria = data || []; 
+            const lista = document.getElementById('lista-regras');
+            if (data) {
+                lista.innerHTML = data.map(r => `
+                    <tr class="border-b">
+                        <td class="p-2 cursor-pointer text-blue-600 font-black italic" style="text-transform: none;" onclick="editarRegraPorId('${r.id}')">
+                            ${r.description}
+                        </td>
+                        <td class="p-2 text-right font-black">$ ${formatarMoeda(r.base_value)}</td>
+                        <td class="p-2 text-center font-black">${r.frequency_type}</td>
+                        <td class="p-2 text-red-500 font-black cursor-pointer text-center" onclick="deletarRegra('${r.id}')">X</td>
+                    </tr>
+                `).join('');
+            }
+        }
+		
+        function popularCategoriasSelect() { const t = document.getElementById('m-tipo').value; document.getElementById('m-categoria').innerHTML = categoriasAtuais.filter(c => c.type === t && c.is_active !== false).map(c => `<option value="${c.id}">${c.name}</option>`).join(''); }
+        function ajustarOpcoesFreq() { const f = document.getElementById('m-freq').value, c = document.getElementById('opcoes-freq'); c.innerHTML = ""; if (f === 'monthly') c.innerHTML = `<label class="block font-black text-[9px] text-slate-400 mb-1 uppercase">Dia do Mês</label><input type="number" id="m-dia-escolhido" class="w-full border p-1 rounded text-xs font-black" value="1" min="1" max="31">`; else if (f === 'weekly' || f === 'bi-weekly') c.innerHTML = `<label class="block font-black text-[9px] text-slate-400 mb-1 uppercase">Dia da Semana</label><select id="m-dia-escolhido" class="w-full border p-1 rounded text-[10px] font-black"><option value="1">Segunda</option><option value="2">Terça</option><option value="3">Quarta</option><option value="4">Quinta</option><option value="5" selected>Sexta</option><option value="6">Sábado</option><option value="0">Domingo</option></select>`; else if (f === 'specific_months') c.innerHTML = `<label class="block font-black text-[9px] text-slate-400 mb-1 uppercase">Meses</label><div class="grid grid-cols-6 gap-1">` + mesesNomes.map((m, i) => `<label class="text-[8px] flex flex-col items-center font-black"><input type="checkbox" class="mes-check" value="${i}"> ${m.substring(0,3)}</label>`).join('') + `</div>`; }
+        function limparFormLancamento() { document.getElementById('edit-rule-id').value = ""; document.getElementById('m-desc').value = ""; document.getElementById('m-valor').value = "0.00"; document.getElementById('m-inicio').value = ""; document.getElementById('m-fim').value = ""; document.getElementById('m-freq').value = "monthly"; ajustarOpcoesFreq(); }
+        function deletarRegraEdicao() {
+            const id = document.getElementById('edit-rule-id').value;
+            if(id) deletarRegra(id);
+        }
+		async function salvarAncora() { let d = document.getElementById('data-banco').value, v = parseFloat(document.getElementById('saldo-banco').value.replace(/,/g, '')); await conexao.from('profiles').update({ last_bank_balance: v, last_balance_date: d }).eq('id', usuarioId); saldoBaseGlobal = v; dataBaseGlobal = d; dataVisualizacao = new Date(d + "T00:00:00"); await atualizarTela(); mostrarAviso("OK!", "success"); }
+        async function verificarPendenciasAntesDeSalvar() { const nd = document.getElementById('data-banco').value; if (!nd) return; const { data } = await conexao.from('transactions').select('*').eq('status', 'predicted').lt('date', nd); if (data && data.length > 0) { renderizarPendencias(data); document.getElementById('modal-empurrao').classList.remove('hidden'); } else { salvarAncora(); } }
+        function renderizarPendencias(data) { document.getElementById('lista-pendencias').innerHTML = data.map((p, i) => `<div class="bg-slate-50 border p-2 rounded-lg font-black text-[10px] uppercase"><div class="flex justify-between text-blue-700 mb-1"><span>${p.description}</span><span>$ ${formatarMoeda(p.predicted_debit || p.predicted_credit)}</span></div><div class="grid grid-cols-3 gap-1 mt-1"><button onclick="acaoPendencia('${p.id}', 'pagar', '${i}')" class="bg-green-600 text-white p-1 rounded text-[8px]">PAGO</button><button onclick="acaoPendencia('${p.id}', 'zerar', '${i}')" class="bg-slate-500 text-white p-1 rounded text-[8px]">ZERAR</button><div class="flex flex-col"><input type="date" id="p-data-${i}" class="text-[8px] border mb-1 outline-none font-black"><button onclick="acaoPendencia('${p.id}', 'empurrar', '${i}')" class="bg-orange-500 text-white p-1 rounded uppercase text-[8px]">MOVER</button></div></div></div>`).join(''); }
+        async function acaoPendencia(id, acao, idx) { let up = {}; if (acao === 'pagar') { const {data:p} = await conexao.from('transactions').select('*').eq('id', id).single(); up = { status: 'realized', realized_debit: p.predicted_debit, realized_credit: p.predicted_credit, predicted_debit: 0, predicted_credit: 0 }; } else if (acao === 'zerar') up = { status: 'realized', realized_debit: 0, realized_credit: 0, predicted_debit: 0, predicted_credit: 0 }; else { const d = document.getElementById(`p-data-${idx}`).value; if (!d) return; await conexao.from('transactions').update({ date: d }).eq('id', id); verificarPendenciasAntesDeSalvar(); return; } await conexao.from('transactions').update(up).eq('id', id); verificarPendenciasAntesDeSalvar(); }
+        function finalizarProcessamentoEmpurrao() { document.getElementById('modal-empurrao').classList.add('hidden'); salvarAncora(); }
+        
+		async function salvarCategoria() { 
+            const idEdit = document.getElementById('edit-cat-id').value;
+            const nome = document.getElementById('new-cat-name').value.trim();
+            const tipo = document.getElementById('new-cat-type').value;
+
+            if (!nome) return;
+
+            // Mostra um aviso visual de que o sistema está trabalhando
+            mostrarAviso("PROCESSANDO SINCRONIZAÇÃO...", "info");
+
+            if (idEdit) { 
+                // 1. ATUALIZA A CATEGORIA
+                await conexao.from('categories').update({ name: nome, type: tipo }).eq('id', idEdit).eq('user_id', usuarioId);
+
+                // 2. ATUALIZA AS REGRAS (MODELS) VINCULADAS
+                await conexao.from('transaction_models').update({ type: tipo }).eq('category', idEdit).eq('user_id', usuarioId);
+
+                // 3. ATUALIZA OS LANÇAMENTOS (TRANSACTIONS) VINCULADOS
+                const { data: modelos } = await conexao.from('transaction_models').select('id').eq('category', idEdit);
+                
+                if (modelos && modelos.length > 0) {
+                    const idsModelos = modelos.map(m => m.id);
+                    
+                    for (const modId of idsModelos) {
+                        const { data: lancamentos } = await conexao.from('transactions').select('*').eq('model_id', modId);
+                        
+                        // Processa cada lançamento para inverter as colunas se necessário
+                        for (const lanc of lancamentos) {
+                            let up = {};
+                            if (tipo === 'debit') {
+                                up.predicted_debit = lanc.predicted_credit > 0 ? lanc.predicted_credit : lanc.predicted_debit;
+                                up.predicted_credit = 0;
+                                up.realized_debit = lanc.realized_credit > 0 ? lanc.realized_credit : lanc.realized_debit;
+                                up.realized_credit = 0;
+                            } else {
+                                up.predicted_credit = lanc.predicted_debit > 0 ? lanc.predicted_debit : lanc.predicted_credit;
+                                up.predicted_debit = 0;
+                                up.realized_credit = lanc.realized_debit > 0 ? lanc.realized_debit : lanc.realized_credit;
+                                up.realized_debit = 0;
+                            }
+                            await conexao.from('transactions').update(up).eq('id', lanc.id);
+                        }
+                    }
+                }
+            } else { 
+                // NOVO CADASTRO
+                await conexao.from('categories').insert([{ user_id: usuarioId, name: nome, type: tipo, is_active: true }]); 
+            }
+
+            // Pausa um pouco maior (1.2 segundos) para garantir que o banco terminou de mover os valores
+            setTimeout(async () => {
+                limparFormCategoria(); 
+                await carregarCategorias(); 
+                await carregarRegras();
+                renderizarListaCategorias(); 
+                await atualizarTela(); // Recarrega a planilha com as novas cores e colunas
+                mostrarAviso("SISTEMA SINCRONIZADO!", "success");
+            }, 1200);
+        }
+
+        // Função auxiliar para limpar e atualizar a tela (para não repetir código)
+        function sucessoOperacao(isEdit) {
+            setTimeout(async () => {
+                limparFormCategoria(); 
+                await carregarCategorias(); 
+                renderizarListaCategorias(); 
+                mostrarAviso(isEdit ? "ATUALIZADO" : "CRIADO", "success");
+            }, 500);
+        }
+		
+		// FUNÇÃO PARA MOSTRAR OS LIMITES NAS CAIXINHAS
+        function carregarLimitesNoForm() {
+            document.getElementById('cfg-min').value = formatarMoeda(limiteMinGlobal);
+            document.getElementById('cfg-max').value = formatarMoeda(limiteMaxGlobal);
+        }
+		
+		// FUNÇÃO PARA SALVAR LIMITES DE CORES
+        async function salvarConfiguracoes() {
+            const min = parseFloat(document.getElementById('cfg-min').value.replace(/,/g, '')) || 0;
+            const max = parseFloat(document.getElementById('cfg-max').value.replace(/,/g, '')) || 0;
+
+            const { error } = await conexao
+                .from('profiles')
+                .update({ min_balance_limit: min, max_balance_limit: max })
+                .eq('id', usuarioId);
+
+            if (!error) {
+                mostrarAviso("CONFIGURAÇÕES SALVAS!", "success");
+                // Atualiza as variáveis na memória do site para mudar as cores na hora
+                limiteMinGlobal = min;
+                limiteMaxGlobal = max;
+                atualizarTela();
+            } else {
+                mostrarAviso("ERRO AO SALVAR CONFIGS", "error");
+            }
+        }
+		
+		// FUNÇÃO PARA EXPORTAR OS DADOS PARA EXCEL (BACKUP)
+        // FUNÇÃO PARA EXPORTAR OS DADOS (VERSÃO REVISADA)
+        async function exportarParaCSV() {
+            mostrarAviso("PREPARANDO BACKUP...", "info");
+            
+            const { data, error } = await conexao
+                .from('transactions')
+                .select('date, description, predicted_debit, predicted_credit, realized_debit, realized_credit, status')
+                .order('date', { ascending: true });
+
+            if (error || !data || data.length === 0) {
+                mostrarAviso("NENHUM DADO ENCONTRADO", "error");
+                return;
+            }
+
+            // Títulos das colunas na nova ordem solicitada
+            let conteudoCSV = "\ufeff"; // Garante que o Excel entenda acentos (UTF-8 BOM)
+            conteudoCSV += "DATA,DESCRICAO,REAL DEBITO,REAL CREDITO,PREV DEBITO,PREV CREDITO,SALDO,STATUS\n";
+
+            let rbExport = saldoBaseGlobal; // Começa do saldo bancário atual
+            const dbExport = new Date(dataBaseGlobal + "T00:00:00");
+
+            data.forEach(t => {
+                const dt = new Date(t.date + "T00:00:00");
+                
+                // Calcula o saldo linha a linha (apenas previstos futuros afetam o saldo projetado)
+                if (t.status === 'predicted' && dt >= dbExport) {
+                    rbExport += (t.predicted_credit - t.predicted_debit);
+                }
+
+                const linha = [
+                    t.date,
+                    `"${t.description}"`,
+                    t.realized_debit,
+                    t.realized_credit,
+                    t.predicted_debit,
+                    t.predicted_credit,
+                    rbExport.toFixed(2), // Nova coluna de Saldo
+                    t.status
+                ].join(",");
+                conteudoCSV += linha + "\n";
+            });
+
+            const blob = new Blob([conteudoCSV], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `backup_financas_${getHojeLocal()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            mostrarAviso("BACKUP CONCLUÍDO!", "success");
+        }
+        
+		// FUNÇÃO PARA ABRIR A TELA DE USUÁRIOS E BUSCAR A LISTA
+        async function abrirGestaoUsuarios() {
+            const modal = document.getElementById('modal-usuarios');
+            modal.style.display = 'flex';
+            modal.classList.remove('hidden');
+            
+            // Busca todos os perfis cadastrados no banco
+            const { data, error } = await conexao.from('profiles').select('id, login, email, role').order('login');
+            
+            if (data) {
+                const corpoTabela = document.getElementById('lista-usuarios-corpo');
+                corpoTabela.innerHTML = data.map(u => `
+                    <tr class="border-b">
+                        <td class="p-2 font-black">${u.login} ${u.role === 'master' ? '(ME)' : ''}</td>
+                        <td class="p-2 text-slate-400">${u.email}</td>
+                        <td class="p-2 text-center">
+                            ${u.id !== usuarioId ? `<button onclick="deletarMembroFamilia('${u.id}')" class="text-red-500 font-black">X</button>` : '-'}
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // FUNÇÃO PARA CADASTRAR UM NOVO MEMBRO DA FAMÍLIA
+        async function cadastrarMembroFamilia() {
+            const login = document.getElementById('new-user-login').value.trim();
+            const email = document.getElementById('new-user-email').value.trim();
+            const pass = document.getElementById('new-user-pass').value;
+
+            if (!login || !email || !pass) return mostrarAviso("PREENCHA TUDO!", "error");
+
+            mostrarAviso("CADASTRANDO...", "info");
+
+            // 1. Cria o acesso oficial (Auth)
+            const { data, error } = await conexao.auth.signUp({ email, password: pass });
+
+            if (error) {
+                let msg = error.message; if(msg.includes("already registered")) msg = "E-MAIL JÁ CADASTRADO"; mostrarAviso("ERRO: " + msg.toUpperCase(), "error");
+            } else {
+                // 2. Cria o perfil na nossa tabela
+                await conexao.from('profiles').insert([{ id: data.user.id, login: login, email: email, role: 'user' }]);
+                
+                // Limpa os campos e atualiza a lista
+                document.getElementById('new-user-login').value = "";
+                document.getElementById('new-user-email').value = "";
+                document.getElementById('new-user-pass').value = "";
+                mostrarAviso("CADASTRADO COM SUCESSO!", "success");
+                abrirGestaoUsuarios();
+            }
+        }
+
+        // FUNÇÃO PARA EXCLUIR UM MEMBRO (USANDO NOSSA JANELA DE CONFIRMAÇÃO)
+        async function deletarMembroFamilia(id) {
+            pedirConfirmacao("EXCLUIR USUÁRIO?", "ISSO APAGARÁ O ACESSO E TODOS OS DADOS DESTA PESSOA.", async () => {
+                // Remove o perfil (as regras de banco que criamos no SQL cuidam do resto)
+                const { error } = await conexao.from('profiles').delete().eq('id', id);
+                if (!error) {
+                    mostrarAviso("USUÁRIO REMOVIDO!", "success");
+                    abrirGestaoUsuarios();
+                } else {
+                    mostrarAviso("ERRO AO REMOVER", "error");
+                }
+            });
+        }
+    </script>
+</body>
+</html>
