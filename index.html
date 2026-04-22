@@ -535,19 +535,33 @@
         }
         
 		async function deletarCat(id) {
-            // 1. Verifica se existe alguma regra (model) sua usando esta categoria
-            const { data: emUso } = await conexao.from('transaction_models')
-                .select('id')
-                .eq('category', id)
-                .eq('user_id', usuarioId);
+            pedirConfirmacao("EXCLUIR CATEGORIA?", "A CATEGORIA E OS LANÇAMENTOS FUTUROS SUMIRÃO. O PASSADO FICARÁ NO HISTÓRICO.", async () => {
+                const hoje = new Date().toLocaleDateString('en-CA');
 
-            if (emUso && emUso.length > 0) {
-                alert("NÃO PODE EXCLUIR: EXISTEM LANÇAMENTOS PREVISTOS OU REGRAS USANDO ESTA CATEGORIA.");
-                fecharModalConfirmacao();
-                return;
-            }
+                // 1. Busca quais regras (models) usam esta categoria
+                const { data: modelos } = await conexao.from('transaction_models')
+                    .select('id')
+                    .eq('category', id)
+                    .eq('user_id', usuarioId);
 
-            pedirConfirmacao("EXCLUIR CATEGORIA?", "ELA SUMIRÁ DA LISTA, MAS O HISTÓRICO FICA.", async () => {
+                if (modelos && modelos.length > 0) {
+                    const idsModelos = modelos.map(m => m.id);
+
+                    // 2. Apaga os lançamentos FUTUROS (Previstos) vinculados a essas regras
+                    await conexao.from('transactions')
+                        .delete()
+                        .in('model_id', idsModelos)
+                        .gte('date', hoje)
+                        .eq('user_id', usuarioId);
+
+                    // 3. Apaga as REGRAS para elas pararem de gerar novos meses
+                    await conexao.from('transaction_models')
+                        .delete()
+                        .eq('category', id)
+                        .eq('user_id', usuarioId);
+                }
+
+                // 4. Inativa a Categoria (ela some da lista mas mantém o nome no histórico passado)
                 const { error } = await conexao.from('categories')
                     .update({ is_active: false })
                     .eq('id', id)
@@ -558,8 +572,10 @@
                 } else {
                     setTimeout(async () => {
                         await carregarCategorias(); 
+                        await carregarRegras();
                         renderizarListaCategorias();
-                        mostrarAviso("REMOVIDA", "success");
+                        await atualizarTela();
+                        mostrarAviso("CATEGORIA E FUTURO REMOVIDOS", "success");
                     }, 500);
                 }
             });
@@ -714,8 +730,15 @@
         // --- SISTEMA RESTANTE ---
         async function atualizarTela() {
             const anoF = dataVisualizacao.getFullYear(), mesF = dataVisualizacao.getMonth();
+			
+			// BLINDAGEM: Se a memória estiver vazia, força o carregamento antes de desenhar a tela
+            if (categoriasAtuais.length === 0) await carregarCategorias();
+            if (regrasNaMemoria.length === 0) await carregarRegras();
+			
             document.getElementById('mes-selecionado-nome').innerText = mesesNomes[mesF] + " " + anoF;
-            const { data: trans } = await conexao.from('transactions').select('*').order('date', { ascending: true }).order('description', { ascending: true });
+            
+			const { data: trans } = await conexao.from('transactions').select('*').eq('user_id', usuarioId).order('date', { ascending: true }).order('description', { ascending: true });
+			
             transacoesDesteMes = trans || [];
 			let rb = saldoBaseGlobal, db = new Date(dataBaseGlobal + "T00:00:00"), statsMeses = Array.from({length: 12}, () => ({ min: null, max: null }));
             
@@ -880,33 +903,46 @@
 			// Filtra para mostrar apenas categorias que NÃO foram desativadas
 			const categoriasVivas = categoriasAtuais.filter(c => c.is_active !== false);
 
-			document.getElementById('lista-categorias').innerHTML = categoriasVivas.map(c => `
-				<tr class="border-b">
-					<td class="p-1 cursor-pointer text-blue-600 font-black" onclick='editarCat(${JSON.stringify(c)})'>${c.name}</td>
-					<td class="p-1 text-slate-400 font-black">${c.type}</td>
+			document.getElementById('lista-categorias').innerHTML = categoriasVivas.map(c => {
+                // Define a cor baseada no tipo da categoria
+                const classeCor = c.type === 'credit' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700';
+                
+                return `
+				<tr class="border-b ${classeCor}">
+					<td class="p-1 cursor-pointer font-black" onclick='editarCat(${JSON.stringify(c)})'>${c.name}</td>
+					<td class="p-1 font-black uppercase text-[8px]">${c.type}</td>
 					<td class="p-1 text-red-500 text-center cursor-pointer font-black" onclick="deletarCat('${c.id}')">X</td>
 				</tr>
-			`).join('');
+			`;}).join('');
 		}
 		
         function editarCat(c) { document.getElementById('edit-cat-id').value = c.id; document.getElementById('new-cat-name').value = c.name; document.getElementById('new-cat-type').value = c.type; document.getElementById('btn-salvar-cat').innerText = "ATUALIZAR"; }
         function limparFormCategoria() { document.getElementById('edit-cat-id').value = ""; document.getElementById('new-cat-name').value = ""; document.getElementById('btn-salvar-cat').innerText = "ADD"; }
         
 		async function carregarRegras() {
-            const { data } = await conexao.from('transaction_models').select('*').order('description');
+            const { data } = await conexao.from('transaction_models')
+                .select('*')
+                .eq('user_id', usuarioId)
+                .order('description');
+
             regrasNaMemoria = data || []; 
             const lista = document.getElementById('lista-regras');
             if (data) {
-                lista.innerHTML = data.map(r => `
-                    <tr class="border-b">
-                        <td class="p-2 cursor-pointer text-blue-600 font-black italic" style="text-transform: none;" onclick="editarRegraPorId('${r.id}')">
-                            ${r.description}
-                        </td>
-                        <td class="p-2 text-right font-black">$ ${formatarMoeda(r.base_value)}</td>
-                        <td class="p-2 text-center font-black">${r.frequency_type}</td>
-                        <td class="p-2 text-red-500 font-black cursor-pointer text-center" onclick="deletarRegra('${r.id}')">X</td>
-                    </tr>
-                `).join('');
+                lista.innerHTML = data.map(r => {
+                    // Define a cor baseada no tipo da regra (Débito ou Crédito)
+                    const classeCor = r.type === 'credit' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700';
+
+                    return `
+                        <tr class="border-b ${classeCor}">
+                            <td class="p-2 cursor-pointer font-black italic" style="text-transform: none;" onclick="editarRegraPorId('${r.id}')">
+                                ${r.description}
+                            </td>
+                            <td class="p-2 text-right font-black">$ ${formatarMoeda(r.base_value)}</td>
+                            <td class="p-2 text-center font-black uppercase text-[8px]">${r.frequency_type}</td>
+                            <td class="p-2 text-red-500 font-black cursor-pointer text-center" onclick="deletarRegra('${r.id}')">X</td>
+                        </tr>
+                    `;
+                }).join('');
             }
         }
 		
