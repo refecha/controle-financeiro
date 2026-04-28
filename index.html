@@ -623,6 +623,17 @@
                 return;
             }
 
+			// ALERTA DE SEGURANÇA PARA LANÇAMENTO RETROATIVO
+            const hojeParaAlerta = getHojeLocal();
+            if (dInStr < hojeParaAlerta) {
+                const confirmarRetroativo = confirm("ATENÇÃO: A DATA DE INÍCIO É ANTERIOR A HOJE.\n\nESTE LANÇAMENTO SERÁ REGISTRADO COMO 'REALIZADO' NO SEU HISTÓRICO PASSADO.\n\nDESEJA CONTINUAR?");
+                if (!confirmarRetroativo) {
+                    btn.disabled = false;
+                    btn.innerText = "SALVAR";
+                    return; // Para o salvamento e permite ao usuário corrigir a data
+                }
+            }
+
             btn.disabled = true;
             btn.innerText = "GRAVANDO...";
 
