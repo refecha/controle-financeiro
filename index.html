@@ -955,8 +955,40 @@
         }
 		async function salvarAncora() { let d = document.getElementById('data-banco').value, v = parseFloat(document.getElementById('saldo-banco').value.replace(/,/g, '')); await conexao.from('profiles').update({ last_bank_balance: v, last_balance_date: d }).eq('id', usuarioId); saldoBaseGlobal = v; dataBaseGlobal = d; dataVisualizacao = new Date(d + "T00:00:00"); await atualizarTela(); mostrarAviso("OK!", "success"); }
         async function verificarPendenciasAntesDeSalvar() { const nd = document.getElementById('data-banco').value; if (!nd) return; const { data } = await conexao.from('transactions').select('*').eq('status', 'predicted').lt('date', nd); if (data && data.length > 0) { renderizarPendencias(data); document.getElementById('modal-empurrao').classList.remove('hidden'); } else { salvarAncora(); } }
-        function renderizarPendencias(data) { document.getElementById('lista-pendencias').innerHTML = data.map((p, i) => `<div class="bg-slate-50 border p-2 rounded-lg font-black text-[10px] uppercase"><div class="flex justify-between text-blue-700 mb-1"><span>${p.description}</span><span>$ ${formatarMoeda(p.predicted_debit || p.predicted_credit)}</span></div><div class="grid grid-cols-3 gap-1 mt-1"><button onclick="acaoPendencia('${p.id}', 'pagar', '${i}')" class="bg-green-600 text-white p-1 rounded text-[8px]">PAGO</button><button onclick="acaoPendencia('${p.id}', 'zerar', '${i}')" class="bg-slate-500 text-white p-1 rounded text-[8px]">ZERAR</button><div class="flex flex-col"><input type="date" id="p-data-${i}" class="text-[8px] border mb-1 outline-none font-black"><button onclick="acaoPendencia('${p.id}', 'empurrar', '${i}')" class="bg-orange-500 text-white p-1 rounded uppercase text-[8px]">MOVER</button></div></div></div>`).join(''); }
-        async function acaoPendencia(id, acao, idx) { let up = {}; if (acao === 'pagar') { const {data:p} = await conexao.from('transactions').select('*').eq('id', id).single(); up = { status: 'realized', realized_debit: p.predicted_debit, realized_credit: p.predicted_credit, predicted_debit: 0, predicted_credit: 0 }; } else if (acao === 'zerar') up = { status: 'realized', realized_debit: 0, realized_credit: 0, predicted_debit: 0, predicted_credit: 0 }; else { const d = document.getElementById(`p-data-${idx}`).value; if (!d) return; await conexao.from('transactions').update({ date: d }).eq('id', id); verificarPendenciasAntesDeSalvar(); return; } await conexao.from('transactions').update(up).eq('id', id); verificarPendenciasAntesDeSalvar(); }
+        
+		
+		function renderizarPendencias(data) {
+            document.getElementById('lista-pendencias').innerHTML = data.map((p, i) => {
+                // Pega o valor previsto original para sugerir na edição
+                const valorPrevisto = p.predicted_debit || p.predicted_credit;
+                
+                return `
+                <div class="bg-slate-50 border p-3 rounded-lg font-black text-[10px] uppercase space-y-2">
+                    <div class="flex justify-between text-blue-700 text-xs">
+                        <span>${p.description}</span>
+                        <span>PREV: $ ${formatarMoeda(valorPrevisto)}</span>
+                    </div>
+                    
+                    <!-- Campo para corrigir o valor realizado -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-500">VALOR REAL ($):</span>
+                        <input type="text" id="p-valor-${i}" class="w-24 border rounded p-1 text-right outline-none" value="${formatarMoeda(valorPrevisto)}" onfocus="this.select()" onblur="formatarCampoMoeda(this)">
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 mt-2">
+                        <button onclick="acaoPendencia('${p.id}', 'pagar', '${i}')" class="bg-green-600 text-white p-2 rounded text-[9px] shadow hover:bg-green-700">REALIZADO</button>
+                        <button onclick="acaoPendencia('${p.id}', 'zerar', '${i}')" class="bg-slate-500 text-white p-2 rounded text-[9px] shadow hover:bg-slate-600">ZERAR</button>
+                        <div class="flex flex-col">
+                            <input type="date" id="p-data-${i}" class="text-[9px] border mb-1 p-1 rounded outline-none">
+                            <button onclick="acaoPendencia('${p.id}', 'empurrar', '${i}')" class="bg-orange-500 text-white p-1 rounded uppercase text-[9px] shadow hover:bg-orange-600">MOVER</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        
+		
+		async function acaoPendencia(id, acao, idx) { let up = {}; if (acao === 'pagar') { const {data:p} = await conexao.from('transactions').select('*').eq('id', id).single(); up = { status: 'realized', realized_debit: p.predicted_debit, realized_credit: p.predicted_credit, predicted_debit: 0, predicted_credit: 0 }; } else if (acao === 'zerar') up = { status: 'realized', realized_debit: 0, realized_credit: 0, predicted_debit: 0, predicted_credit: 0 }; else { const d = document.getElementById(`p-data-${idx}`).value; if (!d) return; await conexao.from('transactions').update({ date: d }).eq('id', id); verificarPendenciasAntesDeSalvar(); return; } await conexao.from('transactions').update(up).eq('id', id); verificarPendenciasAntesDeSalvar(); }
         function finalizarProcessamentoEmpurrao() { document.getElementById('modal-empurrao').classList.add('hidden'); salvarAncora(); }
         
 		async function salvarCategoria() { 
