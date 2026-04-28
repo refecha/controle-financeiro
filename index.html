@@ -350,7 +350,13 @@
     </div>
 	
     <div id="modal-empurrao" class="modal-bg hidden">
-        <div class="modal-content shadow-2xl font-black text-[10px] uppercase"><h2 class="text-sm text-red-600 mb-2">Pendências</h2><div id="lista-pendencias" class="space-y-2 pr-1"></div><div class="mt-4 pt-3 border-t"><button onclick="finalizarProcessamentoEmpurrao()" class="w-full bg-blue-600 text-white py-2 rounded font-black uppercase">Concluir</button></div></div>
+        
+		<div class="mt-4 pt-3 border-t">
+			<button onclick="fecharModalEmpurrao()" class="w-full bg-slate-200 text-slate-700 py-2 rounded font-black uppercase hover:bg-slate-300">
+			Sair sem tratar tudo
+			</button>
+		</div>
+		
     </div>
 
 		<!-- RODAPÉ DO SISTEMA -->
@@ -660,20 +666,24 @@
                 const prepararItem = (dataFinal) => {
                     const df = new Date(dataFinal.getFullYear(), dataFinal.getMonth(), dataFinal.getDate());
                     const lim = new Date(dLimite.getFullYear(), dLimite.getMonth(), dLimite.getDate());
-                    
-                    // Cria a data no formato YYYY-MM-DD respeitando o fuso horário local
-                    const dStr = dataFinal.toLocaleDateString('en-CA'); 
+                    const dStr = dataFinal.toLocaleDateString('en-CA');
+                    const hojeLocal = new Date(getHojeLocal() + "T00:00:00");
 
-                    // SÓ ADICIONA O NOVO SE A DATA NÃO TIVER UM CADEADO ATIVO
-                    if (df >= hoje && df <= lim && !datasComCadeado.includes(dStr)) {
+                    // SÓ ADICIONA SE A DATA NÃO TIVER UM CADEADO ATIVO
+                    if (df <= lim && !datasComCadeado.includes(dStr)) {
+                        const ehPassado = df < hojeLocal;
+
                         lanches.push({ 
                             user_id: usuarioId, 
                             model_id: modelIdParaUso, 
                             description: desc, 
                             date: dStr, 
-                            predicted_debit: tipo === 'debit' ? valor : 0, 
-                            predicted_credit: tipo === 'credit' ? valor : 0, 
-                            status: 'predicted',
+                            // Inteligência Retroativa:
+                            status: ehPassado ? 'realized' : 'predicted',
+                            predicted_debit: !ehPassado && tipo === 'debit' ? valor : 0, 
+                            predicted_credit: !ehPassado && tipo === 'credit' ? valor : 0, 
+                            realized_debit: ehPassado && tipo === 'debit' ? valor : 0,
+                            realized_credit: ehPassado && tipo === 'credit' ? valor : 0,
                             is_manual_value: false 
                         });
                     }
@@ -933,13 +943,17 @@
                 .eq('user_id', usuarioId)
                 .order('description');
 
-            regrasNaMemoria = data || []; 
+            const hoje = new Date().toLocaleDateString('en-CA');
+            
+            // FILTRO: Só mantém na lista regras sem data fim ou que ainda não venceram
+            const regrasVivas = data ? data.filter(r => !r.end_date || r.end_date >= hoje) : [];
+            
+            regrasNaMemoria = data || []; // Mantém tudo na memória para a planilha
             const lista = document.getElementById('lista-regras');
+            
             if (data) {
-                lista.innerHTML = data.map(r => {
-                    // Define a cor baseada no tipo da regra (Débito ou Crédito)
+                lista.innerHTML = regrasVivas.map(r => {
                     const classeCor = r.type === 'credit' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700';
-
                     return `
                         <tr class="border-b ${classeCor}">
                             <td class="p-2 cursor-pointer font-black italic" style="text-transform: none;" onclick="editarRegraPorId('${r.id}')">
@@ -961,9 +975,46 @@
             const id = document.getElementById('edit-rule-id').value;
             if(id) deletarRegra(id);
         }
-		async function salvarAncora() { let d = document.getElementById('data-banco').value, v = parseFloat(document.getElementById('saldo-banco').value.replace(/,/g, '')); await conexao.from('profiles').update({ last_bank_balance: v, last_balance_date: d }).eq('id', usuarioId); saldoBaseGlobal = v; dataBaseGlobal = d; dataVisualizacao = new Date(d + "T00:00:00"); await atualizarTela(); mostrarAviso("OK!", "success"); }
-        async function verificarPendenciasAntesDeSalvar() { const nd = document.getElementById('data-banco').value; if (!nd) return; const { data } = await conexao.from('transactions').select('*').eq('status', 'predicted').lt('date', nd); if (data && data.length > 0) { renderizarPendencias(data); document.getElementById('modal-empurrao').classList.remove('hidden'); } else { salvarAncora(); } }
-        
+		
+		// 1. Fecha o modal de pendências sem salvar o saldo
+        function fecharModalEmpurrao() {
+            document.getElementById('modal-empurrao').classList.add('hidden');
+        }
+
+        // 2. Salva o Saldo Bancário e a Data no seu perfil
+        async function salvarAncora() { 
+            let d = document.getElementById('data-banco').value;
+            let v = parseFloat(document.getElementById('saldo-banco').value.replace(/,/g, '')); 
+            
+            await conexao.from('profiles').update({ last_bank_balance: v, last_balance_date: d }).eq('id', usuarioId); 
+            
+            saldoBaseGlobal = v; 
+            dataBaseGlobal = d; 
+            dataVisualizacao = new Date(d + "T00:00:00"); 
+            
+            fecharModalEmpurrao(); // Fecha a janela ao salvar
+            await atualizarTela(); 
+            mostrarAviso("SALDO ATUALIZADO!", "success"); 
+        }
+
+        // 3. Busca pendências e decide se abre a janela ou se salva direto
+        async function verificarPendenciasAntesDeSalvar() { 
+            const nd = document.getElementById('data-banco').value; 
+            if (!nd) return; 
+
+            const { data } = await conexao.from('transactions')
+                .select('*')
+                .eq('user_id', usuarioId)
+                .eq('status', 'predicted')
+                .lt('date', nd); 
+
+            if (data && data.length > 0) { 
+                renderizarPendencias(data); 
+                document.getElementById('modal-empurrao').classList.remove('hidden'); 
+            } else { 
+                salvarAncora(); // Se não há pendências, salva o saldo automaticamente
+            } 
+        }
 		
 		function renderizarPendencias(data) {
             document.getElementById('lista-pendencias').innerHTML = data.map((p, i) => {
@@ -984,7 +1035,7 @@
                     </div>
 
                     <div class="grid grid-cols-3 gap-2 mt-2">
-                        <button onclick="acaoPendencia('${p.id}', 'pagar', '${i}')" class="bg-green-600 text-white p-2 rounded text-[9px] shadow hover:bg-green-700">REALIZADO</button>
+                        <button onclick="acaoPendencia('${p.id}', 'realizado', '${i}')" class="bg-green-600 text-white p-2 rounded text-[9px] shadow hover:bg-green-700">REALIZADO</button>
                         <button onclick="acaoPendencia('${p.id}', 'zerar', '${i}')" class="bg-slate-500 text-white p-2 rounded text-[9px] shadow hover:bg-slate-600">ZERAR</button>
                         <div class="flex flex-col">
                             <input type="date" id="p-data-${i}" class="text-[9px] border mb-1 p-1 rounded outline-none">
@@ -1036,9 +1087,7 @@
             }
         }
 		
-        function finalizarProcessamentoEmpurrao() { document.getElementById('modal-empurrao').classList.add('hidden'); salvarAncora(); }
-        
-		async function salvarCategoria() { 
+        async function salvarCategoria() { 
             const idEdit = document.getElementById('edit-cat-id').value;
             const nome = document.getElementById('new-cat-name').value.trim();
             const tipo = document.getElementById('new-cat-type').value;
