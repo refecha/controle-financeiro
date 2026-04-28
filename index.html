@@ -522,20 +522,27 @@
         function logout() { conexao.auth.signOut().then(() => window.location.href = 'login.html'); }
 
         // --- EXCLUSÃO PADRONIZADA ---
-        function pedirConfirmacao(titulo, texto, callback) {
+        
+		function pedirConfirmacao(titulo, texto, callback, textoBotao = "SIM, EXCLUIR") {
             const modal = document.getElementById('modal-confirmacao');
             const btnSim = document.getElementById('btn-confirmar-sim');
+            
+            // Define os textos da janela
             document.getElementById('confirm-titulo').innerText = titulo;
             document.getElementById('confirm-texto').innerText = texto;
+            btnSim.innerText = textoBotao; 
+
             modal.style.display = 'flex';
             modal.classList.remove('hidden');
+
             btnSim.onclick = async () => {
                 btnSim.innerText = "PROCESSANDO...";
                 await callback();
                 modal.style.display = 'none';
-                btnSim.innerText = "SIM, EXCLUIR";
+                btnSim.innerText = "SIM, EXCLUIR"; // Reseta para o padrão
             };
         }
+		
         function fecharModalConfirmacao() { document.getElementById('modal-confirmacao').style.display = 'none'; }
 
         async function deletarRegra(id) {
@@ -608,7 +615,8 @@
             return new Date(ano, mes, Math.min(diaDesejado, ultimoDia));
         }
 
-        async function salvarModelo() {
+        
+		async function salvarModelo() {
             const btn = document.getElementById('btn-salvar-modelo');
             const idEdit = document.getElementById('edit-rule-id').value;
             const desc = document.getElementById('m-desc').value.trim();
@@ -623,138 +631,104 @@
                 return;
             }
 
-			// ALERTA DE SEGURANÇA PARA LANÇAMENTO RETROATIVO
-            const hojeParaAlerta = getHojeLocal();
-            if (dInStr < hojeParaAlerta) {
-                const confirmarRetroativo = confirm("ATENÇÃO: A DATA DE INÍCIO É ANTERIOR A HOJE.\n\nESTE LANÇAMENTO SERÁ REGISTRADO COMO 'REALIZADO' NO SEU HISTÓRICO PASSADO.\n\nDESEJA CONTINUAR?");
-                if (!confirmarRetroativo) {
-                    btn.disabled = false;
-                    btn.innerText = "SALVAR";
-                    return; // Para o salvamento e permite ao usuário corrigir a data
-                }
-            }
+            // FUNÇÃO INTERNA QUE REALIZA A GRAVAÇÃO DE FATO
+            const executarGravacao = async () => {
+                btn.disabled = true;
+                btn.innerText = "GRAVANDO...";
 
-            btn.disabled = true;
-            btn.innerText = "GRAVANDO...";
+                let dM = null, dS = null, mL = null;
+                if(freq === 'monthly') dM = parseInt(document.getElementById('m-dia-escolhido').value);
+                else if(freq === 'weekly' || freq === 'bi-weekly') dS = parseInt(document.getElementById('m-dia-escolhido').value);
+                else if(freq === 'specific_months') mL = Array.from(document.querySelectorAll('.mes-check:checked')).map(cb => parseInt(cb.value));
 
-            // Captura as opções de frequência
-            let dM = null, dS = null, mL = null;
-            if(freq === 'monthly') dM = parseInt(document.getElementById('m-dia-escolhido').value);
-            else if(freq === 'weekly' || freq === 'bi-weekly') dS = parseInt(document.getElementById('m-dia-escolhido').value);
-            else if(freq === 'specific_months') mL = Array.from(document.querySelectorAll('.mes-check:checked')).map(cb => parseInt(cb.value));
+                const ruleData = { user_id: usuarioId, description: desc, type: tipo, category: document.getElementById('m-categoria').value, base_value: valor, frequency_type: freq, start_date: dInStr, end_date: dFimStr || null, day_of_month: dM, day_of_week: dS, specific_months: mL };
 
-            const ruleData = { user_id: usuarioId, description: desc, type: tipo, category: document.getElementById('m-categoria').value, base_value: valor, frequency_type: freq, start_date: dInStr, end_date: dFimStr || null, day_of_month: dM, day_of_week: dS, specific_months: mL };
+                try {
+                    let modelIdParaUso = idEdit;
+                    if (idEdit) {
+                        await conexao.from('transaction_models').update(ruleData).eq('id', idEdit);
+                        await conexao.from('transactions').update({ description: desc }).eq('model_id', idEdit);
+                        await conexao.from('transactions').delete().eq('model_id', idEdit).eq('status', 'predicted').eq('is_manual_value', false).gte('date', getHojeLocal());
+                    } else {
+                        const { data: novaRegra, error: erroRegra } = await conexao.from('transaction_models').insert([ruleData]).select().single();
+                        if (erroRegra) throw erroRegra;
+                        modelIdParaUso = novaRegra.id;
+                    }
 
-            try {
-                let modelIdParaUso = idEdit;
-                if (idEdit) {
-                    await conexao.from('transaction_models').update(ruleData).eq('id', idEdit);
-                    await conexao.from('transactions').update({ description: desc }).eq('model_id', idEdit);
-                    
-					await conexao.from('transactions').delete().eq('model_id', idEdit).eq('status', 'predicted').eq('is_manual_value', false).gte('date', getHojeLocal());
-					
-					
-                } else {
-                    const { data: novaRegra, error: erroRegra } = await conexao.from('transaction_models').insert([ruleData]).select().single();
-                    if (erroRegra) throw erroRegra;
-                    modelIdParaUso = novaRegra.id;
-                }
+                    const { data: manuais } = await conexao.from('transactions').select('date').eq('model_id', modelIdParaUso).eq('is_manual_value', true);
+                    const datasComCadeado = manuais ? manuais.map(m => m.date) : [];
 
-                // GERAÇÃO DOS LANÇAMENTOS
-                let lanches = [], dC = new Date(dInStr + "T00:00:00");
-                // Se não tiver data limite, projeta 24 meses. Se tiver, usa a data limite.
-                const dLimite = dFimStr ? new Date(dFimStr + "T00:00:00") : new Date(new Date().getFullYear() + 2, new Date().getMonth(), new Date().getDate());
-                const hoje = new Date(getHojeLocal() + "T00:00:00");
-
-                // Buscamos no banco quais datas deste item já possuem o "CADEADO"
-                const { data: manuais } = await conexao.from('transactions')
-                    .select('date')
-                    .eq('model_id', modelIdParaUso)
-                    .eq('is_manual_value', true);
-                
-                const datasComCadeado = manuais ? manuais.map(m => m.date) : [];
-
-                const prepararItem = (dataFinal) => {
-                    const df = new Date(dataFinal.getFullYear(), dataFinal.getMonth(), dataFinal.getDate());
-                    const lim = new Date(dLimite.getFullYear(), dLimite.getMonth(), dLimite.getDate());
-                    const dStr = dataFinal.toLocaleDateString('en-CA');
+                    let lanches = [], dC = new Date(dInStr + "T00:00:00");
+                    const dLimite = dFimStr ? new Date(dFimStr + "T00:00:00") : new Date(new Date().getFullYear() + 2, new Date().getMonth(), new Date().getDate());
                     const hojeLocal = new Date(getHojeLocal() + "T00:00:00");
 
-                    // SÓ ADICIONA SE A DATA NÃO TIVER UM CADEADO ATIVO
-                    if (df <= lim && !datasComCadeado.includes(dStr)) {
-                        const ehPassado = df < hojeLocal;
+                    const prepararItem = (dataFinal) => {
+                        const df = new Date(dataFinal.getFullYear(), dataFinal.getMonth(), dataFinal.getDate());
+                        const lim = new Date(dLimite.getFullYear(), dLimite.getMonth(), dLimite.getDate());
+                        const dStr = dataFinal.toLocaleDateString('en-CA');
 
-                        lanches.push({ 
-                            user_id: usuarioId, 
-                            model_id: modelIdParaUso, 
-                            description: desc, 
-                            date: dStr, 
-                            // Inteligência Retroativa:
-                            status: ehPassado ? 'realized' : 'predicted',
-                            predicted_debit: !ehPassado && tipo === 'debit' ? valor : 0, 
-                            predicted_credit: !ehPassado && tipo === 'credit' ? valor : 0, 
-                            realized_debit: ehPassado && tipo === 'debit' ? valor : 0,
-                            realized_credit: ehPassado && tipo === 'credit' ? valor : 0,
-                            is_manual_value: false 
-                        });
-                    }
-                };
+                        if (df <= lim && !datasComCadeado.includes(dStr)) {
+                            const ehPassado = df < hojeLocal;
+                            lanches.push({ 
+                                user_id: usuarioId, model_id: modelIdParaUso, description: desc, date: dStr, 
+                                status: ehPassado ? 'realized' : 'predicted',
+                                predicted_debit: !ehPassado && tipo === 'debit' ? valor : 0, 
+                                predicted_credit: !ehPassado && tipo === 'credit' ? valor : 0, 
+                                realized_debit: ehPassado && tipo === 'debit' ? valor : 0,
+                                realized_credit: ehPassado && tipo === 'credit' ? valor : 0,
+                                is_manual_value: false 
+                            });
+                        }
+                    };
 
-                if (freq === 'monthly') {
-                    const diaDesejado = dM;
-                    for(let i=0; i<25; i++) {
-                        let anoA = dC.getFullYear(); let mesA = dC.getMonth() + i;
-                        let ultimoD = new Date(anoA, mesA + 1, 0).getDate();
-                        let dataCalculada = new Date(anoA, mesA, Math.min(diaDesejado, ultimoD));
-                        
-                        // Se for o primeiro mês e o dia desejado for antes do início, 
-                        // forçamos para o dia de início para não perder o lançamento
-                        if (i === 0 && dataCalculada < dC) {
-                            prepararItem(dC); 
-                        } else {
-                            prepararItem(dataCalculada);
+                    if (freq === 'monthly') {
+                        for(let i=0; i<25; i++) {
+                            let anoA = dC.getFullYear(); let mesA = dC.getMonth() + i;
+                            let ultimoD = new Date(anoA, mesA + 1, 0).getDate();
+                            prepararItem(new Date(anoA, mesA, Math.min(dM, ultimoD)));
+                        }
+                    } else if (freq === 'weekly' || freq === 'bi-weekly') {
+                        let dTemp = new Date(dC);
+                        while(dTemp.getDay() !== (dS || 5)) dTemp.setDate(dTemp.getDate() + 1);
+                        while(dTemp <= dLimite && lanches.length < 104) {
+                            prepararItem(new Date(dTemp));
+                            dTemp.setDate(dTemp.getDate() + (freq === 'weekly' ? 7 : 14));
+                        }
+                    } else if (freq === 'specific_months') {
+                        for(let i=0; i<25; i++) {
+                            let dBase = new Date(dC.getFullYear(), dC.getMonth() + i, 1);
+                            if (mL && mL.includes(dBase.getMonth())) {
+                                let ultimoD = new Date(dBase.getFullYear(), dBase.getMonth() + 1, 0).getDate();
+                                prepararItem(new Date(dBase.getFullYear(), dBase.getMonth(), Math.min(dC.getDate(), ultimoD)));
+                            }
                         }
                     }
-                } else if (freq === 'weekly' || freq === 'bi-weekly') {
-                    let dTemp = new Date(dC);
-                    while(dTemp.getDay() !== (dS || 5)) dTemp.setDate(dTemp.getDate() + 1);
-                    while(dTemp <= dLimite && lanches.length < 104) {
-                        prepararItem(new Date(dTemp));
-                        dTemp.setDate(dTemp.getDate() + (freq === 'weekly' ? 7 : 14));
+
+                    if (lanches.length > 0) {
+                        const { error: errIns } = await conexao.from('transactions').insert(lanches);
+                        if (errIns) throw errIns;
                     }
-                } else if (freq === 'specific_months') {
-                    for(let i=0; i<25; i++) {
-                        let dBase = new Date(dC.getFullYear(), dC.getMonth() + i, 1);
-                        if (mL && mL.includes(dBase.getMonth())) {
-                            let ultimoD = new Date(dBase.getFullYear(), dBase.getMonth() + 1, 0).getDate();
-                            prepararItem(new Date(dBase.getFullYear(), dBase.getMonth(), Math.min(dC.getDate(), ultimoD)));
-                        }
-                    }
+
+                    setTimeout(async () => {
+                        await carregarRegras(); await atualizarTela(); fecharModal();
+                        mostrarAviso("SALVO COM SUCESSO!", "success");
+                        btn.disabled = false; btn.innerText = "SALVAR";
+                    }, 500);
+
+                } catch (err) {
+                    alert("ERRO AO SALVAR: " + err.message);
+                    btn.disabled = false; btn.innerText = "SALVAR";
                 }
+            };
 
-                if (lanches.length > 0) {
-                    const { error: errIns } = await conexao.from('transactions').insert(lanches);
-                    if (errIns) throw errIns;
-                }
-
-                btn.disabled = false;
-                btn.innerText = "SALVAR";
-                
-                // Pausa de meio segundo para garantir que o banco de dados salvou tudo
-                setTimeout(async () => {
-                    await carregarRegras(); // Atualiza a lista de regras na memória
-                    await atualizarTela();  // Recarrega a planilha na tela
-                    fecharModal();          // Fecha a janela de edição
-                    mostrarAviso("SALVO COM SUCESSO!", "success");
-                }, 500);
-
-            } catch (err) {
-                console.error(err);
-                alert("ERRO AO SALVAR: " + err.message);
-                btn.disabled = false;
-                btn.innerText = "SALVAR";
+            // VERIFICA SE É RETROATIVO E SE É UM NOVO LANÇAMENTO
+            if (dInStr < getHojeLocal() && !idEdit) {
+                pedirConfirmacao("DATA RETROATIVA", "ESTE LANÇAMENTO SERÁ REGISTRADO NO SEU HISTÓRICO PASSADO. DESEJA CONTINUAR?", executarGravacao, "SIM, CONTINUAR");
+            } else {
+                executarGravacao();
             }
         }
+		
 
         // --- SISTEMA RESTANTE ---
         async function atualizarTela() {
