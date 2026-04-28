@@ -988,7 +988,46 @@
         }
         
 		
-		async function acaoPendencia(id, acao, idx) { let up = {}; if (acao === 'pagar') { const {data:p} = await conexao.from('transactions').select('*').eq('id', id).single(); up = { status: 'realized', realized_debit: p.predicted_debit, realized_credit: p.predicted_credit, predicted_debit: 0, predicted_credit: 0 }; } else if (acao === 'zerar') up = { status: 'realized', realized_debit: 0, realized_credit: 0, predicted_debit: 0, predicted_credit: 0 }; else { const d = document.getElementById(`p-data-${idx}`).value; if (!d) return; await conexao.from('transactions').update({ date: d }).eq('id', id); verificarPendenciasAntesDeSalvar(); return; } await conexao.from('transactions').update(up).eq('id', id); verificarPendenciasAntesDeSalvar(); }
+		
+		async function acaoPendencia(id, acao, idx) { 
+            // 1. Captura o valor que você digitou na caixinha da pendência
+            const campoValor = document.getElementById(`p-valor-${idx}`);
+            const vReal = parseFloat(campoValor.value.replace(/,/g, '')) || 0;
+            
+            let up = {}; 
+            
+            if (acao === 'realizado') { 
+                // Busca os dados originais para saber se era débito ou crédito
+                const { data: p } = await conexao.from('transactions').select('*').eq('id', id).single();
+                
+                up = { 
+                    status: 'realized', 
+                    realized_debit: p.predicted_debit > 0 ? vReal : 0, 
+                    realized_credit: p.predicted_credit > 0 ? vReal : 0, 
+                    predicted_debit: 0, 
+                    predicted_credit: 0 
+                }; 
+            } else if (acao === 'zerar') {
+                up = { status: 'realized', realized_debit: 0, realized_credit: 0, predicted_debit: 0, predicted_credit: 0 }; 
+            } else { 
+                const d = document.getElementById(`p-data-${idx}`).value; 
+                if (!d) { alert("ESCOLHA UMA DATA PARA MOVER"); return; }
+                up = { date: d };
+            } 
+
+            // 2. ENVIA PARA O BANCO E ESPERA (AWAIT) A RESPOSTA
+            const { error } = await conexao.from('transactions').update(up).eq('id', id); 
+
+            if (error) {
+                alert("ERRO AO PROCESSAR: " + error.message);
+            } else {
+                // 3. Atualiza a planilha "atrás" do modal para você já ver a mudança
+                await atualizarTela();
+                // 4. Recarrega a lista de pendências para remover o item tratado
+                verificarPendenciasAntesDeSalvar(); 
+            }
+        }
+		
         function finalizarProcessamentoEmpurrao() { document.getElementById('modal-empurrao').classList.add('hidden'); salvarAncora(); }
         
 		async function salvarCategoria() { 
