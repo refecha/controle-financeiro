@@ -476,30 +476,38 @@
 
             if (!itemParaBaixa) return;
 
-            // Criamos o pacote de atualização
+            // Prepara os dados básicos e ativa o CADEADO
             let up = { 
                 date: dataR, 
-                is_manual_value: true // ISSO ATIVA O CADEADO NO BANCO
+                is_manual_value: true 
             };
             
-            // Verifica se o item original é débito ou crédito para salvar na coluna certa
-            if (itemParaBaixa.predicted_debit > 0 || itemParaBaixa.realized_debit > 0) {
-                up.predicted_debit = valorR;
-                up.predicted_credit = 0;
+            // INTELIGÊNCIA: Verifica se o item já está REALIZADO ou se ainda é PREVISTO
+            if (itemParaBaixa.status === 'realized') {
+                // Se já for realizado, atualiza a coluna de Realizados
+                if (itemParaBaixa.realized_debit > 0) {
+                    up.realized_debit = valorR;
+                } else {
+                    up.realized_credit = valorR;
+                }
             } else {
-                up.predicted_credit = valorR;
-                up.predicted_debit = 0;
+                // Se for previsto, atualiza a coluna de Previstos
+                if (itemParaBaixa.predicted_debit > 0) {
+                    up.predicted_debit = valorR;
+                } else {
+                    up.predicted_credit = valorR;
+                }
             }
 
-            // Atualiza apenas este lançamento específico no banco de dados
+            // Envia para o banco de dados
             const { error } = await conexao.from('transactions').update(up).eq('id', itemParaBaixa.id);
 
             if (error) {
-                alert("ERRO AO SALVAR VALOR INDIVIDUAL: " + error.message);
+                alert("ERRO AO SALVAR: " + error.message);
             } else {
                 fecharModalBaixa();
-                await atualizarTela();
-                mostrarAviso("VALOR INDIVIDUAL ATUALIZADO (CADEADO ATIVO)!", "success");
+                await atualizarTela(); // Recarrega a planilha para mostrar o novo valor
+                mostrarAviso("VALOR ATUALIZADO COM SUCESSO!", "success");
             }
         }
 		
