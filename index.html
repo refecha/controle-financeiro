@@ -497,13 +497,16 @@
                     up.realized_credit = valorR;
                 }
             } else {
-                // Se for previsto, atualiza a coluna de Previstos
-                if (itemParaBaixa.predicted_debit > 0) {
-                    up.predicted_debit = valorR;
-                } else {
-                    up.predicted_credit = valorR;
-                }
-            }
+				// Se for previsto, MUDA PARA REALIZADO e move o valor de coluna
+				up.status = 'realized';
+				if (itemParaBaixa.predicted_debit > 0) {
+                up.realized_debit = valorR;
+                up.predicted_debit = 0;
+				} else {
+					up.realized_credit = valorR;
+					up.predicted_credit = 0;
+				}
+			}
 
             // Envia para o banco de dados
             const { error } = await conexao.from('transactions').update(up).eq('id', itemParaBaixa.id);
@@ -991,7 +994,7 @@
                 .select('*')
                 .eq('user_id', usuarioId)
                 .eq('status', 'predicted')
-                .lt('date', nd); 
+                .lte('date', nd); 
 
             if (data && data.length > 0) { 
                 renderizarPendencias(data); 
