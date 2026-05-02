@@ -412,7 +412,11 @@
             await carregarCategorias();
 			await carregarRegras();
             ajustarOpcoesFreq();
-            setTimeout(async () => { await atualizarTela(); }, 300);
+            setTimeout(async () => { 
+                await atualizarTela(); 
+                // Chama a verificação de pendências automaticamente ao abrir o sistema
+                await verificarPendenciasAntesDeSalvar();
+            }, 300);
         };
 
         function formatarMoeda(v) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v); }
@@ -1031,24 +1035,26 @@
         }
 
         // 3. Verifica pendências e decide se abre o modal ou salva direto
+        // 3. Salva o saldo imediatamente e depois verifica se há pendências
         async function verificarPendenciasAntesDeSalvar() { 
             const nd = document.getElementById('data-banco').value; 
             if (!nd) { alert("INFORME A DATA DO SALDO"); return; } 
 
-            // Busca contas "A Vencer" que ficaram para trás da nova data do saldo
-            const { data, error } = await conexao.from('transactions')
+            // A) SALVA O SALDO IMEDIATAMENTE (O saldo na planilha mudará agora)
+            await salvarAncora(); 
+
+            // B) BUSCA PENDÊNCIAS (itens que ficaram para trás da nova data)
+            const { data } = await conexao.from('transactions')
                 .select('*')
                 .eq('user_id', usuarioId)
                 .eq('status', 'predicted')
-                .lte('date', nd); // Pega tudo que venceu até a data informada
+                .lte('date', nd); 
 
+            // C) SE HOUVER PENDÊNCIAS, ABRE O MODAL PARA TRATAR
             if (data && data.length > 0) { 
                 renderizarPendencias(data); 
                 document.getElementById('modal-empurrao').classList.remove('hidden'); 
                 document.getElementById('modal-empurrao').style.display = 'flex';
-            } else { 
-                // Se não houver pendências, já grava o saldo novo direto
-                await salvarAncora(); 
             } 
         }
 		
