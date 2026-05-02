@@ -88,17 +88,28 @@
     </div>
 
     <!-- MODAL DE BAIXA -->
+    
+	<!-- MODAL DE EDIÇÃO INDIVIDUAL -->
     <div id="modal-baixa" class="modal-bg hidden">
-        <div class="modal-content shadow-2xl font-black uppercase">
-            <h2 class="text-sm mb-3 border-b pb-2 text-slate-700 italic uppercase">Confirmar Lançamento</h2>
+        <div class="modal-content shadow-2xl font-black uppercase relative">
+            <!-- Botão X para fechar no canto superior direito -->
+            <div class="flex justify-between items-center mb-3 border-b pb-2">
+                <h2 class="text-sm text-slate-700 italic uppercase">Editar Lançamento</h2>
+                <button onclick="fecharModalBaixa()" class="text-slate-400 text-2xl leading-none hover:text-red-500">&times;</button>
+            </div>
+
             <p id="baixa-desc" class="text-xs text-blue-600 mb-4 font-black"></p>
+            
             <div class="space-y-3 font-black">
-                <div>Data Real<input type="date" id="baixa-data" class="w-full border rounded p-2 text-xs outline-none"></div>
-                <div>Valor Real ($)<input type="text" id="baixa-valor" class="w-full border rounded p-2 text-xs outline-none" onfocus="this.select()" onblur="formatarCampoMoeda(this)"></div>
-                <div class="flex gap-2 mt-4">
-                    <button onclick="confirmarBaixa()" class="flex-1 bg-green-600 text-white py-2 rounded text-[10px]">Confirmar</button>
-                    <button onclick="deletarLancamentoIndividual()" class="flex-1 bg-red-50 text-red-600 py-2 rounded text-[10px]">Excluir</button>
-                    <button onclick="fecharModalBaixa()" class="flex-1 bg-slate-200 text-slate-700 py-2 rounded text-[10px]">Sair</button>
+                <div>Data<input type="date" id="baixa-data" class="w-full border rounded p-2 text-xs outline-none"></div>
+                <div>Valor ($)<input type="text" id="baixa-valor" class="w-full border rounded p-2 text-xs outline-none" onfocus="this.select()" onblur="formatarCampoMoeda(this)"></div>
+                
+                <div class="grid grid-cols-1 gap-2 mt-4">
+                    <div class="flex gap-2">
+                        <button onclick="confirmarBaixa()" class="flex-1 bg-green-600 text-white py-2 rounded text-[10px] shadow hover:bg-green-700">✓ Realizado</button>
+                        <button onclick="alterarLancamentoIndividual()" class="flex-1 bg-blue-600 text-white py-2 rounded text-[10px] shadow hover:bg-blue-700">✎ Alterar</button>
+                    </div>
+                    <button onclick="deletarLancamentoIndividual()" class="w-full bg-red-50 text-red-600 py-2 rounded text-[10px] font-black border border-red-100 hover:bg-red-100">Excluir este lançamento</button>
                 </div>
             </div>
         </div>
@@ -349,14 +360,21 @@
         </div>
     </div>
 	
+    <!-- MODAL PENDENCIAS (SALDO) -->
     <div id="modal-empurrao" class="modal-bg hidden">
-        
-		<div class="mt-4 pt-3 border-t">
-			<button onclick="fecharModalEmpurrao()" class="w-full bg-slate-200 text-slate-700 py-2 rounded font-black uppercase hover:bg-slate-300">
-			Sair sem tratar tudo
-			</button>
-		</div>
-		
+        <div class="modal-content shadow-2xl font-black text-[10px] uppercase max-w-[400px]">
+            <h2 class="text-sm text-red-600 mb-2 border-b pb-2 italic">Pendências de meses anteriores</h2>
+            <p class="text-slate-400 mb-4 lowercase italic font-normal">Trate os itens abaixo para concluir a atualização do saldo.</p>
+            
+            <!-- A LISTA ABAIXO É VITAL PARA O FUNCIONAMENTO -->
+            <div id="lista-pendencias" class="space-y-2 pr-1 max-h-[350px] overflow-y-auto"></div>
+            
+            <div class="mt-4 pt-3 border-t">
+                <button onclick="fecharModalEmpurrao()" class="w-full bg-slate-100 text-slate-500 py-2 rounded font-black uppercase hover:bg-slate-200">
+                    Sair sem tratar tudo
+                </button>
+            </div>
+        </div>
     </div>
 
 		<!-- RODAPÉ DO SISTEMA -->
