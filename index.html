@@ -162,7 +162,7 @@
                 <div class="grid grid-cols-2 gap-2 text-[9px] text-slate-400 uppercase">
                     <div>Início<input type="date" id="m-inicio" class="w-full border rounded p-1 text-xs"></div>
                     <div>Limite<input type="date" id="m-fim" class="w-full border rounded p-1 text-xs"></div>
-                </div>
+				</div>
                 <div class="flex gap-2">
                     <button onclick="salvarModelo()" id="btn-salvar-modelo" class="flex-1 bg-blue-600 text-white py-2 rounded text-[10px] font-black uppercase shadow">SALVAR</button>
                     <button id="btn-excluir-regra" onclick="deletarRegraEdicao()" class="hidden flex-1 bg-red-600 text-white py-2 rounded text-[10px] font-black uppercase shadow" style="display: none !important;">Excluir Regra</button>
@@ -494,47 +494,57 @@
         function fecharModalBaixa() { document.getElementById('modal-baixa').classList.add('hidden'); }
         
 			
-		async function confirmarBaixa() {
+		// Botão "REALIZADO": Salva valor/data e move para a coluna de Realizados
+        async function confirmarBaixa() {
+            salvarEdicaoIndividual(true);
+        }
+
+        // Botão "ALTERAR": Salva valor/data mas MANTÉM como Previsto
+        async function alterarLancamentoIndividual() {
+            salvarEdicaoIndividual(false);
+        }
+
+        // Função mestre que faz o trabalho para os dois botões
+        async function salvarEdicaoIndividual(marcarComoRealizado) {
             const dataR = document.getElementById('baixa-data').value;
             const valorR = parseFloat(document.getElementById('baixa-valor').value.replace(/,/g, ''));
 
             if (!itemParaBaixa) return;
 
-            // Prepara os dados básicos e ativa o CADEADO
             let up = { 
                 date: dataR, 
                 is_manual_value: true 
             };
             
-            // INTELIGÊNCIA: Verifica se o item já está REALIZADO ou se ainda é PREVISTO
-            if (itemParaBaixa.status === 'realized') {
-                // Se já for realizado, atualiza a coluna de Realizados
-                if (itemParaBaixa.realized_debit > 0) {
-                    up.realized_debit = valorR;
-                } else {
-                    up.realized_credit = valorR;
-                }
-            } else {
-				// Se for previsto, MUDA PARA REALIZADO e move o valor de coluna
-				up.status = 'realized';
-				if (itemParaBaixa.predicted_debit > 0) {
-                up.realized_debit = valorR;
+            if (marcarComoRealizado) {
+                up.status = 'realized';
+                // Se for débito, grava no realizado débito, senão crédito
+                const isDebito = (itemParaBaixa.predicted_debit > 0 || itemParaBaixa.realized_debit > 0);
+                up.realized_debit = isDebito ? valorR : 0;
+                up.realized_credit = isDebito ? 0 : valorR;
                 up.predicted_debit = 0;
-				} else {
-					up.realized_credit = valorR;
-					up.predicted_credit = 0;
-				}
-			}
+                up.predicted_credit = 0;
+            } else {
+                // Mantém como previsto (apenas corrige o valor/data)
+                up.status = itemParaBaixa.status; // Mantém o status que já estava
+                const isDebito = (itemParaBaixa.predicted_debit > 0 || itemParaBaixa.realized_debit > 0);
+                if (up.status === 'realized') {
+                    up.realized_debit = isDebito ? valorR : 0;
+                    up.realized_credit = isDebito ? 0 : valorR;
+                } else {
+                    up.predicted_debit = isDebito ? valorR : 0;
+                    up.predicted_credit = isDebito ? 0 : valorR;
+                }
+            }
 
-            // Envia para o banco de dados
             const { error } = await conexao.from('transactions').update(up).eq('id', itemParaBaixa.id);
 
             if (error) {
                 alert("ERRO AO SALVAR: " + error.message);
             } else {
                 fecharModalBaixa();
-                await atualizarTela(); // Recarrega a planilha para mostrar o novo valor
-                mostrarAviso("VALOR ATUALIZADO COM SUCESSO!", "success");
+                await atualizarTela();
+                mostrarAviso("LANÇAMENTO ATUALIZADO!", "success");
             }
         }
 		
@@ -1044,8 +1054,8 @@
                         <button onclick="acaoPendencia('${p.id}', 'realizado', '${i}')" class="bg-green-600 text-white p-2 rounded text-[9px] shadow hover:bg-green-700">REALIZADO</button>
                         <button onclick="acaoPendencia('${p.id}', 'zerar', '${i}')" class="bg-slate-500 text-white p-2 rounded text-[9px] shadow hover:bg-slate-600">ZERAR</button>
                         <div class="flex flex-col">
-                            <input type="date" id="p-data-${i}" class="text-[9px] border mb-1 p-1 rounded outline-none">
-                            <button onclick="acaoPendencia('${p.id}', 'empurrar', '${i}')" class="bg-orange-500 text-white p-1 rounded uppercase text-[9px] shadow hover:bg-orange-600">MOVER</button>
+                            <input type="date" id="p-data-${i}" class="text-[9px] border mb-1 p-1 rounded outline-none" value="${p.date}">
+							<button onclick="acaoPendencia('${p.id}', 'empurrar', '${i}')" class="bg-orange-500 text-white p-1 rounded uppercase text-[9px] shadow hover:bg-orange-600">MOVER</button>
                         </div>
                     </div>
                 </div>`;
