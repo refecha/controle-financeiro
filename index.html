@@ -831,15 +831,15 @@
                         const categoriaNome = regraEncontrada ? (categoriasAtuais.find(c => c.id === regraEncontrada.category)?.name || '-') : '-';
 
                         html += `<tr onclick="perguntarTipoEdicao('${t.id}')" class="border-b hover:opacity-80 cursor-pointer ${classeCor} ${isR ? 'opacity-40' : ''}">
-                            <td class="p-1 col-data border-v text-center uppercase font-black">${t.date.split('-').reverse().join('/')}</td>
-                            <td class="p-1 border-v truncate font-black uppercase text-[9px]">${categoriaNome}</td>
-                            <td class="p-1 border-v truncate font-black" style="text-transform: none;" title="${t.description}">${t.description}</td>
-                            <td class="p-1 debito-real font-black">${isR && t.realized_debit > 0 ? formatarMoeda(t.realized_debit) : '-'}</td>
-                            <td class="p-1 border-v credito-real font-black">${isR && t.realized_credit > 0 ? formatarMoeda(t.realized_credit) : '-'}</td>
-                            <td class="p-1 debito-prev font-black">${!isR && t.predicted_debit > 0 ? formatarMoeda(t.predicted_debit) : '-'}</td>
-                            <td class="p-1 border-v credito-prev font-black">${!isR && t.predicted_credit > 0 ? formatarMoeda(t.predicted_credit) : '-'}</td>
-                            <td class="p-1 col-saldo-val ${getCorSaldo(rbAcumulado)}">${isR ? '-' : formatarMoeda(rbAcumulado)}</td>
-                        </tr>`;
+									<td class="p-1 col-data border-v text-center uppercase font-black">${t.date.split('-').reverse().join('/')}</td>
+									<td class="p-1 border-v truncate font-black uppercase text-[9px]">${categoriaNome}</td>
+									<td class="p-1 border-v truncate font-black" style="text-transform: none;" title="${t.description}">${t.description}</td>
+									<td class="p-1 debito-real font-black">${isR && t.realized_debit > 0 ? formatarMoeda(t.realized_debit) : '-'}</td>
+									<td class="p-1 border-v credito-real font-black">${isR && t.realized_credit > 0 ? formatarMoeda(t.realized_credit) : '-'}</td>
+									<td class="p-1 debito-prev font-black">${!isR && t.predicted_debit > 0 ? formatarMoeda(t.predicted_debit) : '-'}</td>
+									<td class="p-1 border-v credito-prev font-black">${!isR && t.predicted_credit > 0 ? formatarMoeda(t.predicted_credit) : '-'}</td>
+									<td class="p-1 col-saldo-val ${getCorSaldo(rbAcumulado)}">${formatarMoeda(rbAcumulado)}</td>
+								</tr>`;
                     }
                 });
 				
