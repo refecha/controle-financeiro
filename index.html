@@ -998,37 +998,57 @@
         }
 
         // 2. Salva o Saldo Bancário e a Data no seu perfil
+        // 2. Salva o Saldo Bancário de forma definitiva
         async function salvarAncora() { 
-            let d = document.getElementById('data-banco').value;
-            let v = parseFloat(document.getElementById('saldo-banco').value.replace(/,/g, '')); 
+            const campoData = document.getElementById('data-banco');
+            const campoSaldo = document.getElementById('saldo-banco');
             
-            await conexao.from('profiles').update({ last_bank_balance: v, last_balance_date: d }).eq('id', usuarioId); 
+            const d = campoData.value;
+            const v = parseFloat(campoSaldo.value.replace(/,/g, '')); 
+
+            if (!d || isNaN(v)) {
+                alert("POR FAVOR, INSIRA UMA DATA E UM VALOR VÁLIDOS.");
+                return;
+            }
+
+            // Grava no Banco de Dados (Tabela Profiles)
+            const { error } = await conexao.from('profiles')
+                .update({ last_bank_balance: v, last_balance_date: d })
+                .eq('id', usuarioId); 
             
-            saldoBaseGlobal = v; 
-            dataBaseGlobal = d; 
-            dataVisualizacao = new Date(d + "T00:00:00"); 
-            
-            fecharModalEmpurrao(); // Fecha a janela ao salvar
-            await atualizarTela(); 
-            mostrarAviso("SALDO ATUALIZADO!", "success"); 
+            if (error) {
+                alert("ERRO AO SALVAR SALDO: " + error.message);
+            } else {
+                // ATUALIZA A MEMÓRIA DO SISTEMA IMEDIATAMENTE
+                saldoBaseGlobal = v; 
+                dataBaseGlobal = d; 
+                dataVisualizacao = new Date(d + "T00:00:00"); 
+
+                fecharModalEmpurrao(); // Fecha a janela de pendências (se estiver aberta)
+                await atualizarTela(); // Força o recálculo de toda a planilha
+                mostrarAviso("SALDO BANCÁRIO ATUALIZADO!", "success"); 
+            }
         }
 
-        // 3. Busca pendências e decide se abre a janela ou se salva direto
+        // 3. Verifica pendências e decide se abre o modal ou salva direto
         async function verificarPendenciasAntesDeSalvar() { 
             const nd = document.getElementById('data-banco').value; 
-            if (!nd) return; 
+            if (!nd) { alert("INFORME A DATA DO SALDO"); return; } 
 
-            const { data } = await conexao.from('transactions')
+            // Busca contas "A Vencer" que ficaram para trás da nova data do saldo
+            const { data, error } = await conexao.from('transactions')
                 .select('*')
                 .eq('user_id', usuarioId)
                 .eq('status', 'predicted')
-                .lte('date', nd); 
+                .lte('date', nd); // Pega tudo que venceu até a data informada
 
             if (data && data.length > 0) { 
                 renderizarPendencias(data); 
                 document.getElementById('modal-empurrao').classList.remove('hidden'); 
+                document.getElementById('modal-empurrao').style.display = 'flex';
             } else { 
-                salvarAncora(); // Se não há pendências, salva o saldo automaticamente
+                // Se não houver pendências, já grava o saldo novo direto
+                await salvarAncora(); 
             } 
         }
 		
