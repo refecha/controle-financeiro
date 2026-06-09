@@ -211,7 +211,12 @@
     <!-- UI PRINCIPAL -->
     <div class="bg-white shadow-sm p-2 mb-3 border-b font-black uppercase">
         <div class="max-w-7xl mx-auto flex justify-between items-center px-4">
-            <h1 class="text-lg text-blue-600 tracking-tighter italic">Finanças de <span id="nome-usuario">...</span></h1>
+            
+			<h1 class="text-lg text-blue-600 tracking-tighter italic flex items-center gap-2">
+				<i class="fa-solid fa-circle-dollar-to-slot"></i> 
+					Finanças de <span id="nome-usuario">...</span>
+			</h1>
+			
             <div class="flex gap-2 items-center font-black uppercase">
                 <button onclick="abrirAdmin()" class="bg-blue-600 text-white px-3 py-1 rounded text-[10px] shadow">⚙️ Lançamentos</button>
                 <button id="btn-master-users" onclick="abrirGestaoUsuarios()" class="hidden bg-orange-500 text-white px-3 py-1 rounded text-[10px] shadow">👥 Gerenciar Usuários</button>
