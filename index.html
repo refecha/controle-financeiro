@@ -52,28 +52,32 @@
     <div id="modal-usuarios" class="modal-bg hidden" style="display:none; z-index: 9500;">
         <div class="modal-content shadow-2xl font-black uppercase text-[10px] max-w-[500px]">
             <div class="flex justify-between items-center mb-4 border-b pb-2">
-                <h2 class="text-sm text-blue-600 font-black">👥 Gerenciar Usuários</h2>
+                <h2 class="text-sm text-blue-600 font-black">👥 Gerenciar Usuários da Família</h2>
                 <button onclick="document.getElementById('modal-usuarios').style.display='none'" class="text-slate-400 text-xl">&times;</button>
             </div>
-            <div id="form-novo-usuario" class="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4">
+            <div class="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4">
+                <h3 class="mb-2 text-blue-700">Cadastrar Novo Membro</h3>
                 <div class="grid grid-cols-2 gap-2 mb-2">
-                    <input type="text" id="new-user-login" class="border rounded p-1" placeholder="NOME">
+                    <input type="text" id="new-user-login" class="border rounded p-1" placeholder="NOME/LOGIN">
                     <input type="email" id="new-user-email" class="border rounded p-1" placeholder="E-MAIL">
                 </div>
                 <div class="flex gap-2">
-                    <input type="password" id="new-user-pass" class="flex-1 border rounded p-1" placeholder="SENHA">
+                    <input type="password" id="new-user-pass" class="flex-1 border rounded p-1" placeholder="SENHA INICIAL">
                     <button onclick="cadastrarMembroFamilia()" class="bg-blue-600 text-white px-4 py-1 rounded">CADASTRAR</button>
                 </div>
             </div>
             <div class="max-h-60 overflow-y-auto">
                 <table class="w-full text-left">
+                    <thead class="bg-slate-100 sticky top-0 font-black">
+                        <tr><th class="p-2">Login</th><th class="p-2">E-mail</th><th class="p-2 text-center">Ação</th></tr>
+                    </thead>
                     <tbody id="lista-usuarios-corpo"></tbody>
                 </table>
             </div>
         </div>
     </div>
 
-	<!-- DECISÃO DE EDIÇÃO -->
+	<!-- MODAL DE DECISÃO DE EDIÇÃO -->
     <div id="modal-decisao-edicao" class="modal-bg" style="display:none; z-index: 11000;">
         <div class="modal-content shadow-2xl font-black uppercase text-[10px] max-w-[300px]">
             <h2 class="text-sm text-blue-600 mb-4 font-black italic">O QUE DESEJA EDITAR?</h2>
@@ -85,7 +89,7 @@
         </div>
     </div>
 
-    <!-- GERENCIADOR FINANCEIRO -->
+    <!-- MODAL GERENCIADOR -->
     <div id="modal-admin" class="modal-bg hidden font-black">
         <div class="modal-content shadow-2xl">
             <div class="flex justify-between items-center mb-3 text-slate-800 text-sm uppercase italic">
@@ -131,7 +135,7 @@
         </div>
     </div>
 
-    <!-- EDIÇÃO INDIVIDUAL / BAIXA -->
+    <!-- MODAL DE BAIXA / EDIÇÃO INDIVIDUAL -->
     <div id="modal-baixa" class="modal-bg hidden">
         <div class="modal-content shadow-2xl font-black uppercase relative">
             <div class="flex justify-between items-center mb-3 border-b pb-2">
@@ -270,8 +274,8 @@
             <div class="flex justify-between items-center mb-4 border-b pb-2 font-black uppercase italic"><h2 class="text-sm text-blue-600">Manual</h2><button onclick="document.getElementById('modal-manual').style.display='none'" class="text-slate-400 text-2xl">&times;</button></div>
             <div class="space-y-4 text-[10px] font-black uppercase text-slate-600">
                 <p>1. Cadastre categorias primeiro.</p>
-                <p>2. Clique nos lançamentos para editar valor ou dar baixa (Realizado).</p>
-                <p>3. O Cofre guarda senhas com busca por palavras-chave.</p>
+                <p>2. Clique nos lançamentos para editar valor ou dar baixa.</p>
+                <p>3. O Cofre guarda senhas com busca rápida.</p>
             </div>
         </div>
     </div>
@@ -312,22 +316,58 @@
         function getCorSaldo(v, isMax = false) { if (v < 0) return 'saldo-negativo'; if (v < limiteMinGlobal) return 'saldo-rosa'; if (isMax && v >= limiteMaxGlobal) return 'saldo-azul-escuro'; return 'saldo-azul'; }
         function mostrarAviso(t, tp) { const a = document.getElementById('custom-alert'); a.className = `alert-${tp}`; document.getElementById('alert-text').innerText = t; a.style.display = 'block'; setTimeout(() => a.style.display = 'none', 3000); }
         
-        // --- FUNÇÕES DOS BOTÕES ---
+        // --- ADMIN / USUÁRIOS ---
         function abrirAdmin() { limparFormLancamento(); document.getElementById('modal-admin').classList.remove('hidden'); popularCategoriasSelect(); mudarTab('lan'); }
         function fecharModal() { document.getElementById('modal-admin').classList.add('hidden'); }
         function abrirManual() { document.getElementById('modal-manual').style.display = 'flex'; }
         function fecharModalBaixa() { document.getElementById('modal-baixa').classList.add('hidden'); }
-        async function abrirGestaoUsuarios() { document.getElementById('modal-usuarios').style.display = 'flex'; const { data } = await conexao.from('profiles').select('id, login, email, role').order('login'); document.getElementById('lista-usuarios-corpo').innerHTML = data.map(u => `<tr class="border-b"><td class="p-2 font-black">${u.login}</td><td class="p-2 text-slate-400">${u.email}</td><td class="p-2 text-center">${u.id !== usuarioId ? `<button onclick="deletarMembroFamilia('${u.id}')" class="text-red-500 font-black">X</button>` : '-'}</td></tr>`).join(''); }
-        function abrirCofre() { document.getElementById('modal-cofre').style.display = 'flex'; carregarCofre(); }
+        
+        async function abrirGestaoUsuarios() {
+            document.getElementById('modal-usuarios').style.display = 'flex';
+            const { data } = await conexao.from('profiles').select('id, login, email, role').order('login');
+            if (data) {
+                document.getElementById('lista-usuarios-corpo').innerHTML = data.map(u => `
+                    <tr class="border-b">
+                        <td class="p-2 font-black uppercase">${u.login}</td>
+                        <td class="p-2 text-slate-400 lowercase">${u.email}</td>
+                        <td class="p-2 text-center">
+                            ${u.id !== usuarioId ? `<button onclick="deletarMembroFamilia('${u.id}')" class="text-red-500 font-black">X</button>` : '-'}
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        async function cadastrarMembroFamilia() {
+            const login = document.getElementById('new-user-login').value.trim();
+            const email = document.getElementById('new-user-email').value.trim();
+            const pass = document.getElementById('new-user-pass').value;
+            if (!login || !email || !pass) return alert("Preencha tudo");
+            const { data, error } = await conexao.auth.signUp({ email, password: pass });
+            if (!error) {
+                await conexao.from('profiles').insert([{ id: data.user.id, login: login, email: email, role: 'user' }]);
+                mostrarAviso("CADASTRADO!", "success");
+                abrirGestaoUsuarios();
+            } else alert(error.message);
+        }
+
+        async function deletarMembroFamilia(id) {
+            pedirConfirmacao("EXCLUIR USUÁRIO?", "ISSO APAGARÁ O ACESSO E TODOS OS DADOS DESTA PESSOA.", async () => {
+                await conexao.from('profiles').delete().eq('id', id);
+                mostrarAviso("REMOVIDO", "success");
+                abrirGestaoUsuarios();
+            });
+        }
 
         // --- COFRE ---
+        function abrirCofre() { document.getElementById('modal-cofre').style.display = 'flex'; carregarCofre(); }
         async function carregarCofre() {
             const { data, error } = await conexao.from('cofre').select('*').order('categoria', { ascending: true }).order('empresa', { ascending: true });
             if (!error) { cofreDados = data || []; renderizarCofre(cofreDados); }
         }
         function renderizarCofre(itens) {
             const corpo = document.getElementById('tabela-cofre-corpo');
-            corpo.innerHTML = itens.map(item => `<tr onclick='abrirFormCofre(${JSON.stringify(item)})' class="border-b hover:bg-blue-50 cursor-pointer"><td class="p-2 border-r text-blue-700 font-black">${item.categoria || '-'}</td><td class="p-2 border-r font-black">${item.empresa || '-'}</td><td class="p-2 border-r text-slate-500 font-black">${item.tema_funcao || '-'}</td><td class="p-2 border-r font-black">${item.login || '-'}</td><td class="p-2 border-r font-mono">******</td><td class="p-2 lowercase text-blue-500 font-black">${item.link || '-'}</td></tr>`).join('');
+            corpo.innerHTML = itens.map(item => `<tr onclick='abrirFormCofre(${JSON.stringify(item)})' class="border-b hover:bg-blue-50 cursor-pointer"><td class="p-2 border-r text-blue-700 font-black">${item.categoria || '-'}</td><td class="p-2 border-r font-black">${item.empresa || '-'}</td><td class="p-2 border-r text-slate-500 font-black">${item.tema_funcao || '-'}</td><td class="p-2 border-r font-black">${item.login || '-'}</td><td class="p-2 border-r font-mono">******</td><td class="p-2 text-blue-500 lowercase font-black">${item.link || '-'}</td></tr>`).join('');
         }
         function filtrarCofre() {
             const busca = document.getElementById('busca-cofre').value.toUpperCase();
@@ -366,7 +406,7 @@
         }
         async function deletarCofre() {
             const id = document.getElementById('cofre-id').value;
-            pedirConfirmacao("EXCLUIR?", "AÇÃO IRREVERSÍVEL.", async () => { await conexao.from('cofre').delete().eq('id', id); document.getElementById('modal-form-cofre').style.display = 'none'; await carregarCofre(); });
+            pedirConfirmacao("EXCLUIR?", "DADO SERÁ APAGADO.", async () => { await conexao.from('cofre').delete().eq('id', id); document.getElementById('modal-form-cofre').style.display = 'none'; await carregarCofre(); });
         }
 
         // --- SISTEMA FINANCEIRO ---
@@ -389,12 +429,12 @@
         function logout() { conexao.auth.signOut().then(() => window.location.href = 'login.html'); }
 		function pedirConfirmacao(ti, tx, cb) { const m = document.getElementById('modal-confirmacao'); document.getElementById('confirm-titulo').innerText = ti; document.getElementById('confirm-texto').innerText = tx; m.style.display = 'flex'; m.classList.remove('hidden'); document.getElementById('btn-confirmar-sim').onclick = async () => { await cb(); m.style.display = 'none'; }; }
         function fecharModalConfirmacao() { document.getElementById('modal-confirmacao').style.display = 'none'; }
-        async function deletarRegra(id) { pedirConfirmacao("EXCLUIR REGRA?", "O PASSADO FICA, O FUTURO PREVISTO SOME.", async () => { await conexao.from('transactions').delete().eq('model_id', id).eq('status', 'predicted').gte('date', getHojeLocal()); await conexao.from('transaction_models').delete().eq('id', id); fecharModal(); await carregarRegras(); await atualizarTela(); }); }
-        async function deletarCat(id) { pedirConfirmacao("EXCLUIR CATEGORIA?", "AFETA REGRAS E LANÇAMENTOS FUTUROS.", async () => { await conexao.from('categories').update({ is_active: false }).eq('id', id); await carregarCategorias(); await atualizarTela(); }); }
+        async function deletarRegra(id) { pedirConfirmacao("EXCLUIR REGRA?", "APAGARÁ PROJEÇÕES FUTURAS.", async () => { await conexao.from('transactions').delete().eq('model_id', id).eq('status', 'predicted').gte('date', getHojeLocal()); await conexao.from('transaction_models').delete().eq('id', id); fecharModal(); await carregarRegras(); await atualizarTela(); }); }
+        async function deletarCat(id) { pedirConfirmacao("EXCLUIR CATEGORIA?", "AFETA HISTÓRICO E FUTURO.", async () => { await conexao.from('categories').update({ is_active: false }).eq('id', id); await carregarCategorias(); await atualizarTela(); }); }
         async function deletarLancamentoIndividual() { pedirConfirmacao("DELETAR?", "SUMIRÁ DA PLANILHA.", async () => { await conexao.from('transactions').delete().eq('id', itemParaBaixa.id); fecharModalBaixa(); await atualizarTela(); }); }
         async function salvarModelo() {
             const id = document.getElementById('edit-rule-id').value, desc = document.getElementById('m-desc').value.trim(), val = parseFloat(document.getElementById('m-valor').value.replace(/,/g, '')), tipo = document.getElementById('m-tipo').value, freq = document.getElementById('m-freq').value, dIn = document.getElementById('m-inicio').value;
-            if (!desc || isNaN(val) || !dIn) { alert("PREENCHA OS CAMPOS"); return; }
+            if (!desc || isNaN(val) || !dIn) return alert("Preencha campos");
             const ruleData = { user_id: usuarioId, description: desc, type: tipo, category: document.getElementById('m-categoria').value, base_value: val, frequency_type: freq, start_date: dIn, day_of_month: freq==='monthly'?parseInt(document.getElementById('m-dia-escolhido').value):null };
             if (id) await conexao.from('transaction_models').update(ruleData).eq('id', id); else await conexao.from('transaction_models').insert([ruleData]);
             await carregarRegras(); await atualizarTela(); fecharModal(); mostrarAviso("SALVO!", "success");
@@ -416,13 +456,13 @@
                         const isR = t.status === 'realized'; if (!isR && dt >= db) rbA += (t.predicted_credit - t.predicted_debit);
                         if (isR) { totRD += t.realized_debit; totRC += t.realized_credit; } else { totPD += t.predicted_debit; totPC += t.predicted_credit; }
                         const rN = regrasNaMemoria.find(r => r.id === t.model_id); const cN = rN ? (categoriasAtuais.find(c => c.id === rN.category)?.name || '-') : '-';
-                        html += `<tr onclick="perguntarTipoEdicao('${t.id}')" class="border-b hover:opacity-80 cursor-pointer ${t.predicted_debit>0||t.realized_debit>0?'bg-red-50 text-red-700':'bg-green-50 text-green-700'} ${isR ? 'opacity-40' : ''}"><td class="p-1 border-v text-center font-black">${t.date.split('-').reverse().join('/')}</td><td class="p-1 border-v truncate text-[9px]">${cN}</td><td class="p-1 border-v truncate font-black">${t.description}</td><td class="p-1 debito-real font-black">${isR && t.realized_debit>0?formatarMoeda(t.realized_debit):'-'}</td><td class="p-1 border-v credito-real font-black">${isR && t.realized_credit>0?formatarMoeda(t.realized_credit):'-'}</td><td class="p-1 debito-prev font-black">${!isR && t.predicted_debit>0?formatarMoeda(t.predicted_debit):'-'}</td><td class="p-1 border-v credito-prev font-black">${!isR && t.predicted_credit>0?formatarMoeda(t.predicted_credit):'-'}</td><td class="p-1 col-saldo-val ${getCorSaldo(rbA)} font-black">${formatarMoeda(rbA)}</td></tr>`;
+                        html += `<tr onclick="perguntarTipoEdicao('${t.id}')" class="border-b hover:opacity-80 cursor-pointer ${t.predicted_debit>0||t.realized_debit>0?'bg-red-50 text-red-700':'bg-green-50 text-green-700'} ${isR ? 'opacity-40' : ''}"><td class="p-1 border-v text-center font-black">${t.date.split('-').reverse().join('/')}</td><td class="p-1 border-v truncate text-[9px] uppercase">${cN}</td><td class="p-1 border-v truncate font-black">${t.description}</td><td class="p-1 debito-real font-black">${isR && t.realized_debit>0?formatarMoeda(t.realized_debit):'-'}</td><td class="p-1 border-v credito-real font-black">${isR && t.realized_credit>0?formatarMoeda(t.realized_credit):'-'}</td><td class="p-1 debito-prev font-black">${!isR && t.predicted_debit>0?formatarMoeda(t.predicted_debit):'-'}</td><td class="p-1 border-v credito-prev font-black">${!isR && t.predicted_credit>0?formatarMoeda(t.predicted_credit):'-'}</td><td class="p-1 col-saldo-val ${getCorSaldo(rbA)} font-black">${formatarMoeda(rbA)}</td></tr>`;
                     }
                 });
             }
             renderizarReguaMeses(stats);
             document.getElementById('tabela-corpo').innerHTML = html || '<tr><td colspan="8" class="p-10 text-center font-black text-slate-300 uppercase">Vazio</td></tr>';
-            document.getElementById('tabela-rodape').innerHTML = `<tr class="bg-slate-200 border-t-2 font-black text-[10px]"><td colspan="3" class="p-1 text-right border-v italic">Totais:</td><td class="p-1 text-center debito-real">${formatarMoeda(totRD)}</td><td class="p-1 text-center border-v credito-real">${formatarMoeda(totRC)}</td><td class="p-1 text-center debito-prev">${formatarMoeda(totPD)}</td><td class="p-1 text-center border-v credito-prev">${formatarMoeda(totPC)}</td><td class="p-1"></td></tr>`;
+            document.getElementById('tabela-rodape').innerHTML = `<tr class="bg-slate-200 border-t-2 font-black text-[10px]"><td colspan="3" class="p-1 text-right border-v italic">Totais:</td><td class="p-1 text-center debito-real font-black">${formatarMoeda(totRD)}</td><td class="p-1 text-center border-v credito-real font-black">${formatarMoeda(totRC)}</td><td class="p-1 text-center debito-prev font-black">${formatarMoeda(totPD)}</td><td class="p-1 text-center border-v credito-prev font-black">${formatarMoeda(totPC)}</td><td class="p-1"></td></tr>`;
         }
         function renderizarReguaMeses(s) { const l1=document.getElementById('linha-meses-1'), l2=document.getElementById('linha-meses-2'); l1.innerHTML=''; l2.innerHTML=''; mesesNomes.forEach((n, i) => { const c=document.createElement('div'); c.className='card-mes'; let mi=s[i].min??0, ma=s[i].max??0; c.innerHTML=`<div class="text-[8px] text-slate-400 uppercase font-black">${n}</div><div class="text-[9px] font-black ${getCorSaldo(mi)}">${formatarMoeda(mi)}</div><div class="text-[9px] font-black ${getCorSaldo(ma, true)}">${formatarMoeda(ma)}</div>`; if(i<6) l1.appendChild(c); else l2.appendChild(c); }); }
         async function carregarCategorias() { const { data } = await conexao.from('categories').select('*').eq('user_id', usuarioId).order('name'); categoriasAtuais = data || []; popularCategoriasSelect(); }
