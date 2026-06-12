@@ -228,6 +228,11 @@
 						</svg>
 						Manual
 				</button>
+
+                <!-- BOTÃO DO COFRE ADICIONADO AQUI -->
+                <button onclick="abrirCofre()" class="bg-slate-800 text-white px-3 py-1 rounded text-[10px] shadow flex items-center gap-1 uppercase font-black">
+                    <i class="fa-solid fa-lock text-[8px]"></i> COFRE
+                </button>
 				
 				<button onclick="logout()" class="text-[10px] text-red-500 uppercase ml-2 bg-transparent cursor-pointer font-black border-none">Sair</button>
             </div>
@@ -351,7 +356,7 @@
 
                 <section id="m-empurrao">
                     <h4 class="text-blue-600 border-b-2 border-blue-100 mb-2 italic">9. 🔄 A Virada do Mês (O Empurrão)</h4>
-                    <p>Ao mudar o saldo para um novo mês, o sistema pergunta o que fazer com as contas que sobraram do mês passado: Pagar, Zerar ou Mover.</p>
+                    <p>Ao mudar o saldo para um novo mês, o sistema pergunta o que fazer com as dicas que sobraram do mês passado: Pagar, Zerar ou Mover.</p>
                 </section>
 
                 <section id="m-config">
@@ -384,6 +389,70 @@
         </div>
     </div>
 
+    <!-- MODAL LISTAGEM DO COFRE (NOVO) -->
+    <div id="modal-cofre" class="modal-bg" style="display:none; z-index: 12000;">
+        <div class="modal-content shadow-2xl max-w-4xl w-[95%]">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-sm text-slate-800 font-black italic uppercase flex items-center gap-2">
+                    <i class="fa-solid fa-vault text-blue-600"></i> Cofre de Informações
+                </h2>
+                <button onclick="document.getElementById('modal-cofre').style.display='none'" class="text-slate-400 text-2xl">&times;</button>
+            </div>
+
+            <div class="flex flex-wrap gap-2 mb-4">
+                <input type="text" id="busca-cofre" onkeyup="filtrarCofre()" placeholder="BUSCAR EM TODOS OS CAMPOS..." class="flex-1 border rounded p-2 text-[10px] font-black uppercase outline-none focus:ring-1 focus:ring-blue-500">
+                <button onclick="abrirFormCofre()" class="bg-blue-600 text-white px-4 py-2 rounded text-[10px] font-black uppercase shadow">+ Novo Item</button>
+            </div>
+
+            <div class="overflow-x-auto max-h-[60vh]">
+                <table class="w-full text-left border-collapse text-[10px] font-black uppercase">
+                    <thead class="sticky top-0 bg-slate-100 shadow-sm">
+                        <tr class="text-slate-500 border-b">
+                            <th class="p-2">Categoria</th>
+                            <th class="p-2">Empresa</th>
+                            <th class="p-2">Tema/Função</th>
+                            <th class="p-2">Login</th>
+                            <th class="p-2">Senha</th>
+                            <th class="p-2">Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-cofre-corpo"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL FORMULÁRIO DO COFRE (NOVO) -->
+    <div id="modal-form-cofre" class="modal-bg" style="display:none; z-index: 13000;">
+        <div class="modal-content shadow-2xl max-w-md">
+            <div class="flex justify-between items-center mb-4 border-b pb-2 font-black uppercase italic">
+                <h2 id="titulo-form-cofre" class="text-sm text-blue-600">Novo Registro</h2>
+                <button onclick="document.getElementById('modal-form-cofre').style.display='none'" class="text-slate-400 text-2xl">&times;</button>
+            </div>
+            
+            <input type="hidden" id="cofre-id">
+            <div class="space-y-2 font-black uppercase text-[9px]">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>Categoria<input type="text" id="c-cat" class="w-full border rounded p-2 text-[10px] uppercase"></div>
+                    <div>Empresa<input type="text" id="c-emp" class="w-full border rounded p-2 text-[10px] uppercase"></div>
+                </div>
+                <div>Tema/Função<input type="text" id="c-tema" class="w-full border rounded p-2 text-[10px] uppercase"></div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>Login<input type="text" id="c-login" class="w-full border rounded p-2 text-[10px]"></div>
+                    <div>Senha<input type="text" id="c-senha" class="w-full border rounded p-2 text-[10px]"></div>
+                </div>
+                <div>Link/URL<input type="text" id="c-link" class="w-full border rounded p-2 text-[10px] lowercase"></div>
+                <div>Palavras Chave<input type="text" id="c-keys" class="w-full border rounded p-2 text-[10px] uppercase" placeholder="TAGS PARA BUSCA"></div>
+                <div>Observação<textarea id="c-obs" class="w-full border rounded p-2 text-[10px] uppercase" rows="2"></textarea></div>
+                
+                <div class="flex gap-2 pt-4">
+                    <button onclick="salvarCofre()" class="flex-1 bg-green-600 text-white py-2 rounded shadow font-black">SALVAR</button>
+                    <button id="btn-excluir-cofre" onclick="deletarCofre()" class="hidden flex-1 bg-red-600 text-white py-2 rounded shadow font-black">EXCLUIR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 		<!-- RODAPÉ DO SISTEMA -->
     <footer class="max-w-7xl mx-auto px-4 py-8 text-center">
         <p class="text-slate-400 font-black text-[10px] uppercase tracking-widest italic">
@@ -397,7 +466,7 @@
         const conexao = supabase.createClient(URL_PROJETO, CHAVE_ANON);
         const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
         
-		let dataVisualizacao = new Date(), usuarioId = null, saldoBaseGlobal = 0, dataBaseGlobal = '', categoriasAtuais = [], itemParaBaixa = null, itemParaEdicaoIndividual = null, transacoesDesteMes = [], regrasNaMemoria = [], limiteMinGlobal = 300, limiteMaxGlobal = 5000;
+		let dataVisualizacao = new Date(), usuarioId = null, saldoBaseGlobal = 0, dataBaseGlobal = '', categoriasAtuais = [], itemParaBaixa = null, itemParaEdicaoIndividual = null, transacoesDesteMes = [], regrasNaMemoria = [], limiteMinGlobal = 300, limiteMaxGlobal = 5000, cofreDados = [];
 
         window.onload = async () => {
             const { data: { session } } = await conexao.auth.getSession();
@@ -1349,6 +1418,121 @@
                     abrirGestaoUsuarios();
                 } else {
                     mostrarAviso("ERRO AO REMOVER", "error");
+                }
+            });
+        }
+
+        // --- NOVAS FUNÇÕES DO COFRE ---
+
+        async function abrirCofre() {
+            document.getElementById('modal-cofre').style.display = 'flex';
+            await carregarCofre();
+        }
+
+        async function carregarCofre() {
+            const { data, error } = await conexao.from('cofre')
+                .select('*')
+                .order('categoria', { ascending: true })
+                .order('empresa', { ascending: true });
+
+            if (!error) {
+                cofreDados = data || [];
+                renderizarCofre(cofreDados);
+            }
+        }
+
+        function renderizarCofre(itens) {
+            const corpo = document.getElementById('tabela-cofre-corpo');
+            if(!corpo) return;
+            
+            corpo.innerHTML = itens.map(item => `
+                <tr onclick='abrirFormCofre(${JSON.stringify(item)})' class="border-b hover:bg-blue-50 cursor-pointer">
+                    <td class="p-2 border-r text-blue-700 font-black">${item.categoria || '-'}</td>
+                    <td class="p-2 border-r font-black">${item.empresa || '-'}</td>
+                    <td class="p-2 border-r text-slate-500 font-black">${item.tema_funcao || '-'}</td>
+                    <td class="p-2 border-r font-black">${item.login || '-'}</td>
+                    <td class="p-2 border-r font-mono">******</td>
+                    <td class="p-2 truncate max-w-[150px] lowercase text-blue-500 font-black">${item.link || '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        function filtrarCofre() {
+            const busca = document.getElementById('busca-cofre').value.toUpperCase();
+            const filtrados = cofreDados.filter(i => {
+                return Object.values(i).some(val => 
+                    String(val).toUpperCase().includes(busca)
+                );
+            });
+            renderizarCofre(filtrados);
+        }
+
+        function abrirFormCofre(item = null) {
+            document.getElementById('modal-form-cofre').style.display = 'flex';
+            const btnExcluir = document.getElementById('btn-excluir-cofre');
+            
+            if (item) {
+                document.getElementById('titulo-form-cofre').innerText = "Editar Registro";
+                document.getElementById('cofre-id').value = item.id;
+                document.getElementById('c-cat').value = item.categoria || "";
+                document.getElementById('c-emp').value = item.empresa || "";
+                document.getElementById('c-tema').value = item.tema_funcao || "";
+                document.getElementById('c-login').value = item.login || "";
+                document.getElementById('c-senha').value = item.senha || "";
+                document.getElementById('c-link').value = item.link || "";
+                document.getElementById('c-keys').value = item.palavras_chaves || "";
+                document.getElementById('c-obs').value = item.observacao || "";
+                btnExcluir.classList.remove('hidden');
+                btnExcluir.style.display = 'block';
+            } else {
+                document.getElementById('titulo-form-cofre').innerText = "Novo Registro";
+                document.getElementById('cofre-id').value = "";
+                document.querySelectorAll('#modal-form-cofre input, #modal-form-cofre textarea').forEach(i => i.value = "");
+                btnExcluir.classList.add('hidden');
+                btnExcluir.style.display = 'none';
+            }
+        }
+
+        async function salvarCofre() {
+            const id = document.getElementById('cofre-id').value;
+            const obj = {
+                user_id: usuarioId,
+                categoria: document.getElementById('c-cat').value.trim(),
+                empresa: document.getElementById('c-emp').value.trim(),
+                tema_funcao: document.getElementById('c-tema').value.trim(),
+                login: document.getElementById('c-login').value.trim(),
+                senha: document.getElementById('c-senha').value.trim(),
+                link: document.getElementById('c-link').value.trim(),
+                palavras_chaves: document.getElementById('c-keys').value.trim(),
+                observacao: document.getElementById('c-obs').value.trim()
+            };
+
+            let erro;
+            if (id) {
+                const { error } = await conexao.from('cofre').update(obj).eq('id', id);
+                erro = error;
+            } else {
+                const { error } = await conexao.from('cofre').insert([obj]);
+                erro = error;
+            }
+
+            if (!erro) {
+                mostrarAviso("COFRE ATUALIZADO!", "success");
+                document.getElementById('modal-form-cofre').style.display = 'none';
+                await carregarCofre();
+            } else {
+                alert("Erro ao salvar: " + erro.message);
+            }
+        }
+
+        async function deletarCofre() {
+            const id = document.getElementById('cofre-id').value;
+            pedirConfirmacao("EXCLUIR DO COFRE?", "ESTA AÇÃO NÃO PODE SER DESFEITA.", async () => {
+                const { error } = await conexao.from('cofre').delete().eq('id', id);
+                if (!error) {
+                    document.getElementById('modal-form-cofre').style.display = 'none';
+                    await carregarCofre();
+                    mostrarAviso("REMOVIDO DO COFRE", "success");
                 }
             });
         }
