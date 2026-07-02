@@ -452,7 +452,37 @@
             </div>
         </div>
     </div>
+		<!-- JANELA DE SELEÇÃO DE CONTA -->
+    <div id="modal-selecao-conta" class="modal-bg" style="display:none; z-index: 30000;">
+        <div class="modal-content shadow-2xl max-w-[350px] text-center font-black uppercase">
+            <h2 class="text-sm text-blue-600 mb-6 italic border-b pb-2 italic">💳 Selecione a Conta Bancária</h2>
+            <div id="lista-contas-botoes" class="flex flex-col gap-3">
+                <!-- Os botões das suas contas aparecerão aqui automaticamente -->
+            </div>
+            <div class="mt-6 pt-4 border-t border-slate-100">
+                <button onclick="abrirFormNovaConta()" class="text-[9px] text-slate-400 hover:text-blue-600 transition">
+                    + CRIAR NOVA CONTA
+                </button>
+            </div>
+        </div>
+    </div>
 
+    <!-- JANELA PARA CADASTRAR NOVA CONTA -->
+    <div id="modal-nova-conta" class="modal-bg" style="display:none; z-index: 31000;">
+        <div class="modal-content shadow-2xl max-w-[300px] font-black uppercase text-[10px]">
+            <h2 class="text-blue-600 mb-4 italic">Nova Conta Bancária</h2>
+            <div class="space-y-4">
+                <div>
+                    Nome da Conta (Ex: Nubank, Carteira)
+                    <input type="text" id="nc-nome" class="w-full border rounded p-2 mt-1 outline-none focus:ring-1 focus:ring-blue-500" placeholder="NOME DO BANCO">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="criarContaBancaria()" class="flex-1 bg-green-600 text-white py-2 rounded shadow">CADASTRAR</button>
+                    <button onclick="document.getElementById('modal-nova-conta').style.display='none'" class="flex-1 bg-slate-100 text-slate-400 py-2 rounded">CANCELAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
 		<!-- RODAPÉ DO SISTEMA -->
     <footer class="max-w-7xl mx-auto px-4 py-8 text-center">
         <p class="text-slate-400 font-black text-[10px] uppercase tracking-widest italic">
@@ -466,33 +496,27 @@
         const conexao = supabase.createClient(URL_PROJETO, CHAVE_ANON);
         const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
         
-		let dataVisualizacao = new Date(), usuarioId = null, saldoBaseGlobal = 0, dataBaseGlobal = '', categoriasAtuais = [], itemParaBaixa = null, itemParaEdicaoIndividual = null, transacoesDesteMes = [], regrasNaMemoria = [], limiteMinGlobal = 300, limiteMaxGlobal = 5000, cofreDados = [];
+		let dataVisualizacao = new Date(), usuarioId = null, saldoBaseGlobal = 0, dataBaseGlobal = '', categoriasAtuais = [], itemParaBaixa = null, itemParaEdicaoIndividual = null, transacoesDesteMes = [], regrasNaMemoria = [], limiteMinGlobal = 300, limiteMaxGlobal = 5000, cofreDados = [], contaAtivaId = null, listaContas = [];
 
         window.onload = async () => {
             const { data: { session } } = await conexao.auth.getSession();
             if (!session) { window.location.href = 'login.html'; return; }
             usuarioId = session.user.id;
+            
+            // Busca os dados básicos do perfil (Nome e se é Master)
             const { data: profile } = await conexao.from('profiles').select('*').eq('id', usuarioId).single();
             if (profile) {
                 document.getElementById('nome-usuario').innerText = profile.login;
                 if (profile.role === 'master') document.getElementById('btn-master-users').classList.remove('hidden');
-                saldoBaseGlobal = profile.last_bank_balance || 0;
-				limiteMinGlobal = profile.min_balance_limit || 300;
-                limiteMaxGlobal = profile.max_balance_limit || 5000;
-                dataBaseGlobal = profile.last_balance_date || new Date().toLocaleDateString('en-CA');
-                document.getElementById('data-banco').value = dataBaseGlobal;
-                document.getElementById('saldo-banco').value = formatarMoeda(saldoBaseGlobal);
-                dataVisualizacao = new Date(dataBaseGlobal + "T00:00:00");
-                document.getElementById('data-banco').max = getHojeLocal();
             }
-            await carregarCategorias();
-			await carregarRegras();
+            
+            // Configurações visuais iniciais
+            document.getElementById('data-banco').max = getHojeLocal();
             ajustarOpcoesFreq();
-            setTimeout(async () => { 
-                await atualizarTela(); 
-                // Chama a verificação de pendências automaticamente ao abrir o sistema
-                await verificarPendenciasAntesDeSalvar();
-            }, 300);
+            
+            // INICIALIZAÇÃO MULTI-CONTAS:
+            // Em vez de carregar os dados direto, chama a lista de contas para o usuário escolher
+            await carregarContas();
         };
 
         function formatarMoeda(v) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v); }
@@ -752,8 +776,7 @@
                 else if(freq === 'weekly' || freq === 'bi-weekly') dS = parseInt(document.getElementById('m-dia-escolhido').value);
                 else if(freq === 'specific_months') mL = Array.from(document.querySelectorAll('.mes-check:checked')).map(cb => parseInt(cb.value));
 
-                const ruleData = { user_id: usuarioId, description: desc, type: tipo, category: document.getElementById('m-categoria').value, base_value: valor, frequency_type: freq, start_date: dInStr, end_date: dFimStr || null, day_of_month: dM, day_of_week: dS, specific_months: mL };
-
+                const ruleData = { user_id: usuarioId, account_id: contaAtivaId, description: desc, type: tipo, category: document.getElementById('m-categoria').value, base_value: valor, frequency_type: freq, start_date: dInStr, end_date: dFimStr || null, day_of_month: dM, day_of_week: dS, specific_months: mL };
                 try {
                     let modelIdParaUso = idEdit;
                     if (idEdit) {
@@ -781,14 +804,18 @@
                         if (df <= lim && !datasComCadeado.includes(dStr)) {
                             const ehPassado = df < hojeLocal;
                             lanches.push({ 
-                                user_id: usuarioId, model_id: modelIdParaUso, description: desc, date: dStr, 
-                                status: ehPassado ? 'realized' : 'predicted',
-                                predicted_debit: !ehPassado && tipo === 'debit' ? valor : 0, 
-                                predicted_credit: !ehPassado && tipo === 'credit' ? valor : 0, 
-                                realized_debit: ehPassado && tipo === 'debit' ? valor : 0,
-                                realized_credit: ehPassado && tipo === 'credit' ? valor : 0,
-                                is_manual_value: false 
-                            });
+                            user_id: usuarioId, 
+                            account_id: contaAtivaId,
+                            model_id: modelIdParaUso, 
+                            description: desc, 
+                            date: dStr, 
+                            status: ehPassado ? 'realized' : 'predicted',
+                            predicted_debit: !ehPassado && tipo === 'debit' ? valor : 0, 
+                            predicted_credit: !ehPassado && tipo === 'credit' ? valor : 0, 
+                            realized_debit: ehPassado && tipo === 'debit' ? valor : 0,
+                            realized_credit: ehPassado && tipo === 'credit' ? valor : 0,
+                            is_manual_value: false 
+                        });
                         }
                     };
 
@@ -851,7 +878,7 @@
 			
             document.getElementById('mes-selecionado-nome').innerText = mesesNomes[mesF] + " " + anoF;
             
-			const { data: trans } = await conexao.from('transactions').select('*').eq('user_id', usuarioId).order('date', { ascending: true }).order('description', { ascending: true });
+			const { data: trans } = await conexao.from('transactions').select('*').eq('user_id', usuarioId).eq('account_id', contaAtivaId).order('date', { ascending: true }).order('description', { ascending: true });
 			
             transacoesDesteMes = trans || [];
 			let rb = saldoBaseGlobal, db = new Date(dataBaseGlobal + "T00:00:00"), statsMeses = Array.from({length: 12}, () => ({ min: null, max: null }));
@@ -931,11 +958,12 @@
 
         async function carregarCategorias() { 
             // Busca apenas as categorias pertencentes ao usuário logado
-            const { data, error } = await conexao.from('categories')
-                .select('*')
-                .eq('user_id', usuarioId)
-                .order('name'); 
-
+			const { data, error } = await conexao.from('categories')
+				.select('*')
+				.eq('user_id', usuarioId)
+				.eq('account_id', contaAtivaId)
+				.order('name');
+		   
             if (error) {
                 console.error("Erro ao carregar categorias:", error);
                 return;
@@ -1035,9 +1063,10 @@
         
 		async function carregarRegras() {
             const { data } = await conexao.from('transaction_models')
-                .select('*')
-                .eq('user_id', usuarioId)
-                .order('description');
+				.select('*')
+				.eq('user_id', usuarioId)
+				.eq('account_id', contaAtivaId)
+				.order('description');
 
             const hoje = new Date().toLocaleDateString('en-CA');
             
@@ -1092,11 +1121,11 @@
             }
 
             // Grava no Banco de Dados (Tabela Profiles)
-            const { error } = await conexao.from('profiles')
-                .update({ last_bank_balance: v, last_balance_date: d })
-                .eq('id', usuarioId); 
-            
-            if (error) {
+            const { error } = await conexao.from('accounts')
+				.update({ last_bank_balance: v, last_balance_date: d })
+				.eq('id', contaAtivaId);
+			
+			if (error) {
                 alert("ERRO AO SALVAR SALDO: " + error.message);
             } else {
                 // ATUALIZA A MEMÓRIA DO SISTEMA IMEDIATAMENTE
@@ -1123,8 +1152,9 @@
             const { data } = await conexao.from('transactions')
                 .select('*')
                 .eq('user_id', usuarioId)
+                .eq('account_id', contaAtivaId)
                 .eq('status', 'predicted')
-                .lte('date', nd); 
+                .lte('date', nd);
 
             // C) SE HOUVER PENDÊNCIAS, ABRE O MODAL PARA TRATAR
             if (data && data.length > 0) { 
@@ -1251,7 +1281,7 @@
                 }
             } else { 
                 // NOVO CADASTRO
-                await conexao.from('categories').insert([{ user_id: usuarioId, name: nome, type: tipo, is_active: true }]); 
+                await conexao.from('categories').insert([{ user_id: usuarioId, account_id: contaAtivaId, name: nome, type: tipo, is_active: true }]); 
             }
 
             // Pausa um pouco maior (1.2 segundos) para garantir que o banco terminou de mover os valores
@@ -1286,11 +1316,11 @@
             const min = parseFloat(document.getElementById('cfg-min').value.replace(/,/g, '')) || 0;
             const max = parseFloat(document.getElementById('cfg-max').value.replace(/,/g, '')) || 0;
 
-            const { error } = await conexao
-                .from('profiles')
-                .update({ min_balance_limit: min, max_balance_limit: max })
-                .eq('id', usuarioId);
-
+			const { error } = await conexao
+				.from('accounts')
+				.update({ min_balance_limit: min, max_balance_limit: max })
+				.eq('id', contaAtivaId);
+						
             if (!error) {
                 mostrarAviso("CONFIGURAÇÕES SALVAS!", "success");
                 // Atualiza as variáveis na memória do site para mudar as cores na hora
@@ -1309,7 +1339,7 @@
             
             const { data, error } = await conexao
                 .from('transactions')
-                .select('date, description, predicted_debit, predicted_credit, realized_debit, realized_credit, status')
+                .select('date, description, predicted_debit, predicted_credit, realized_debit, realized_credit, status').eq('account_id', contaAtivaId)
                 .order('date', { ascending: true });
 
             if (error || !data || data.length === 0) {
@@ -1536,6 +1566,82 @@
                 }
             });
         }
-    </script>
+    
+		// --- FUNÇÕES DE GESTÃO DE MÚLTIPLAS CONTAS ---
+
+        async function carregarContas() {
+            const { data, error } = await conexao.from('accounts').select('*').eq('user_id', usuarioId).order('account_name');
+            if (data) {
+                listaContas = data;
+                renderizarSelecaoContas();
+            }
+        }
+
+        function renderizarSelecaoContas() {
+            const lista = document.getElementById('lista-contas-botoes');
+            document.getElementById('modal-selecao-conta').style.display = 'flex';
+            
+            if (listaContas.length === 0) {
+                lista.innerHTML = `<p class="text-slate-400 normal-case italic font-normal text-[11px]">Nenhuma conta encontrada.<br>Crie sua primeira conta abaixo.</p>`;
+                return;
+            }
+
+            lista.innerHTML = listaContas.map(acc => `
+                <button onclick="selecionarConta('${acc.id}')" class="w-full bg-slate-50 border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 py-3 rounded-lg text-blue-700 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-building-columns"></i> ${acc.account_name}
+                </button>
+            `).join('');
+        }
+
+        function abrirFormNovaConta() {
+            document.getElementById('modal-nova-conta').style.display = 'flex';
+        }
+
+        async function criarContaBancaria() {
+            const nome = document.getElementById('nc-nome').value.trim();
+            if (!nome) return alert("DIGITE UM NOME PARA A CONTA");
+
+            const { data, error } = await conexao.from('accounts').insert([{ user_id: usuarioId, account_name: nome }]).select().single();
+            
+            if (!error) {
+                document.getElementById('modal-nova-conta').style.display = 'none';
+                document.getElementById('nc-nome').value = "";
+                await carregarContas();
+                mostrarAviso("CONTA CRIADA!", "success");
+            } else {
+                alert("Erro ao criar conta: " + error.message);
+            }
+        }
+
+        async function selecionarConta(id) {
+            const conta = listaContas.find(a => a.id === id);
+            if (!conta) return;
+
+            contaAtivaId = id;
+            
+            // Carrega os dados da conta escolhida para a memória do sistema
+            saldoBaseGlobal = conta.last_bank_balance || 0;
+            limiteMinGlobal = conta.min_balance_limit || 300;
+            limiteMaxGlobal = conta.max_balance_limit || 5000;
+            dataBaseGlobal = conta.last_balance_date || new Date().toLocaleDateString('en-CA');
+
+            // Atualiza os campos na tela
+            document.getElementById('data-banco').value = dataBaseGlobal;
+            document.getElementById('saldo-banco').value = formatarMoeda(saldoBaseGlobal);
+            dataVisualizacao = new Date(dataBaseGlobal + "T00:00:00");
+
+            // Fecha a janela de seleção e carrega os dados
+            document.getElementById('modal-selecao-conta').style.display = 'none';
+            
+            mostrarAviso(`CONTA: ${conta.account_name}`, "info");
+            
+            // Recarrega tudo filtrado por esta conta
+            await carregarCategorias();
+            await carregarRegras();
+            await atualizarTela();
+            await verificarPendenciasAntesDeSalvar();
+        }
+	
+	</script>
 </body>
 </html>
