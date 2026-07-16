@@ -214,7 +214,7 @@
             
 			<h1 class="text-lg text-blue-600 tracking-tighter italic flex items-center gap-2">
 				<i class="fa-solid fa-circle-dollar-to-slot"></i> 
-					Finanças de <span id="nome-usuario">...</span>
+					Finanças de <span id="nome-usuario">...</span> - <span id="nome-conta" class="text-slate-500">...</span>
 			</h1>
 			
             <div class="flex gap-2 items-center font-black uppercase">
@@ -249,7 +249,7 @@
             <div class="flex items-center gap-3">
                 <h3 class="text-[10px] text-blue-700 italic font-black uppercase">Saldo Bancário Atual ($):</h3>
                 <input type="date" id="data-banco" class="border rounded px-2 py-1 text-[10px] font-black outline-none shadow-inner">
-                <input type="text" id="saldo-banco" class="border rounded px-2 py-1 text-[10px] font-black w-28 outline-none shadow-inner" onfocus="this.select()" onblur="formatarCampoMoeda(this)">
+                <input type="text" id="saldo-banco" class="border rounded px-2 py-1 text-[10px] font-black w-28 outline-none shadow-inner" onfocus="this.select()" onblur="formatarCampoMoeda(this)"><input type="text" id="saldo-investimento" class="border rounded px-2 py-1 text-[10px] font-black w-28 outline-none shadow-inner ml-1 text-orange-600" onfocus="this.select()" onblur="formatarCampoMoeda(this)" title="Saldo Informativo de Investimentos">
             </div>
             <button onclick="verificarPendenciasAntesDeSalvar()" class="bg-blue-600 text-white px-5 py-1.5 rounded text-[10px] shadow hover:bg-blue-700 transition uppercase font-black">Atualizar Saldo</button>
         </div>
