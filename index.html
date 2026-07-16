@@ -1121,9 +1121,14 @@
             }
 
             // Grava no Banco de Dados (Tabela Profiles)
-            const { error } = await conexao.from('accounts')
-				.update({ last_bank_balance: v, last_balance_date: d })
-				.eq('id', contaAtivaId);
+            const vInv = parseFloat(document.getElementById('saldo-investimento').value.replace(/,/g, '')) || 0;
+			const { error } = await conexao.from('accounts')
+				.update({ 
+					last_bank_balance: v, 
+					last_balance_date: d,
+					investments_balance: vInv 
+				})
+					.eq('id', contaAtivaId);
 			
 			if (error) {
                 alert("ERRO AO SALVAR SALDO: " + error.message);
@@ -1628,6 +1633,8 @@
             // Atualiza os campos na tela
             document.getElementById('data-banco').value = dataBaseGlobal;
             document.getElementById('saldo-banco').value = formatarMoeda(saldoBaseGlobal);
+			document.getElementById('nome-conta').innerText = conta.account_name;
+			document.getElementById('saldo-investimento').value = formatarMoeda(conta.investments_balance || 0);
             dataVisualizacao = new Date(dataBaseGlobal + "T00:00:00");
 
             // Fecha a janela de seleção e carrega os dados
